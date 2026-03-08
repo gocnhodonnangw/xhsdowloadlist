@@ -7,6 +7,7 @@ import requests
 import json
 import html
 import time
+import subprocess
 import streamlit.components.v1 as components
 
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
@@ -191,74 +192,97 @@ def extract_url(text):
 
 def download_video_to_temp(url, q_key, progress_bar, status_text):
     temp_dir = tempfile.gettempdir()
-    outtmpl = os.path.join(temp_dir, '%(id)s.%(ext)s')
     
+    # Cấu hình Header dùng chung
+    http_headers = {'User-Agent': st.session_state.user_agent}
+    if st.session_state.user_cookie:
+        http_headers['Cookie'] = st.session_state.user_cookie
+
+    base_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'nocache': True,
+        'http_headers': http_headers
+    }
+
+    # BƯỚC 0: Trích xuất Info để định vị file
+    with yt_dlp.YoutubeDL(base_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        vid_id = info.get('id', str(int(time.time())))
+
+    # THUẬT TOÁN 1: PHÂN TÁCH VÀ LẮP RÁP (THỦ CÔNG) - Chỉ kích hoạt khi có Cookie & chọn Origin
+    if st.session_state.user_cookie and q_key == "Origin":
+        try:
+            vid_path = os.path.join(temp_dir, f"{vid_id}_video_only.mp4")
+            aud_path = os.path.join(temp_dir, f"{vid_id}_audio_only.m4a")
+            final_path = os.path.join(temp_dir, f"{vid_id}_final_4k.mp4")
+
+            # 1. Kéo lõi Hình Ảnh
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 1/3: Đang kéo lõi Hình Ảnh 4K...</p>", unsafe_allow_html=True)
+            v_opts = base_opts.copy()
+            v_opts['format'] = 'bestvideo'
+            v_opts['outtmpl'] = vid_path
+            with yt_dlp.YoutubeDL(v_opts) as ydl:
+                ydl.download([url])
+            progress_bar.progress(33)
+
+            # 2. Kéo lõi Âm Thanh
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 2/3: Đang kéo lõi Âm Thanh...</p>", unsafe_allow_html=True)
+            a_opts = base_opts.copy()
+            a_opts['format'] = 'bestaudio'
+            a_opts['outtmpl'] = aud_path
+            with yt_dlp.YoutubeDL(a_opts) as ydl:
+                ydl.download([url])
+            progress_bar.progress(66)
+
+            # 3. Ép FFmpeg hàn ghép
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 3/3: Đang dùng FFmpeg Cloud hàn khối lượng lớn...</p>", unsafe_allow_html=True)
+            
+            # Gọi trực tiếp lệnh hệ thống Linux
+            command = ['ffmpeg', '-y', '-i', vid_path, '-i', aud_path, '-c:v', 'copy', '-c:a', 'aac', final_path]
+            process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            if process.returncode == 0 and os.path.exists(final_path):
+                progress_bar.progress(100)
+                status_text.markdown("<p style='text-align:center; color: #28a745; font-weight: 700;'>✅ Ghép nối thành công khối lượng gốc!</p>", unsafe_allow_html=True)
+                return info, final_path
+            else:
+                raise Exception("Lỗi ghép file hệ thống FFmpeg")
+
+        except Exception as e:
+            # Lỗi ở bất kỳ bước nào (có thể do XHS chặn IP luồng 4K), chuyển sang tải hạ cánh
+            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Không lấy được lõi 4K. Kích hoạt hạ cánh an toàn...</p>", unsafe_allow_html=True)
+            time.sleep(2)
+
+    # THUẬT TOÁN 2: TẢI HẠ CÁNH TIÊU CHUẨN (Khối liền có sẵn)
     def progress_hook(d):
         if d['status'] == 'downloading':
             percent_str = d.get('_percent_str', '0.0%')
             clean_percent = re.sub(r'\x1b\[[0-9;]*m', '', percent_str).replace('%', '').strip()
             try:
-                percent = float(clean_percent)
-                progress_bar.progress(int(percent))
-                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo luồng: {percent}%</p>", unsafe_allow_html=True)
-            except ValueError:
-                pass
-        elif d['status'] == 'finished':
-            progress_bar.progress(100)
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói ghép file...</p>", unsafe_allow_html=True)
-
-    def attempt_download(opts):
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            expected_ext = 'mp4' if info.get('ext') != 'mp4' else info.get('ext', 'mp4')
-            file_path = os.path.join(temp_dir, f"{info['id']}.{expected_ext}")
-            if not os.path.exists(file_path):
-                file_path = ydl.prepare_filename(info)
-            return info, file_path
-
-    # CẤU HÌNH CỐT LÕI (Bổ sung ép đường dẫn FFmpeg cho môi trường Cloud Linux)
-    base_opts = {
-        'outtmpl': outtmpl,
-        'quiet': True,
-        'no_warnings': True,
-        'merge_output_format': 'mp4',
-        'progress_hooks': [progress_hook],
-        'nocache': True,
-        'ffmpeg_location': '/usr/bin/ffmpeg' # Trỏ tay vào thư mục cài đặt mặc định trên Streamlit Cloud
-    }
-    
-    if st.session_state.user_cookie and q_key == "Origin":
-        status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🚀 Đang truy kích luồng VIP Origin...</p>", unsafe_allow_html=True)
-        vip_opts = base_opts.copy()
-        vip_opts['format'] = "bestvideo+bestaudio/best"
-        vip_opts['format_sort'] = ['res', 'size', 'br', 'fps']
-        vip_opts['http_headers'] = {
-            'User-Agent': st.session_state.user_agent,
-            'Cookie': st.session_state.user_cookie
-        }
-        
-        try:
-            return attempt_download(vip_opts)
-        except Exception as e:
-            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Lỗi luồng VIP. Tự động chuyển tải tiêu chuẩn...</p>", unsafe_allow_html=True)
-            time.sleep(1.5)
+                progress_bar.progress(int(float(clean_percent)))
+                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo luồng tiêu chuẩn: {clean_percent}%</p>", unsafe_allow_html=True)
+            except ValueError: pass
 
     standard_q_map = {
-        "Origin": "bestvideo+bestaudio/best", 
-        "1080p": "bestvideo[height<=1080]+bestaudio/best",
-        "720p": "bestvideo[height<=720]+bestaudio/best",
-        "480p": "bestvideo[height<=480]+bestaudio/best"
+        "Origin": "best", # Ép lấy bản tốt nhất có sẵn âm thanh
+        "1080p": "best[height<=1080]",
+        "720p": "best[height<=720]",
+        "480p": "best[height<=480]"
     }
     
     std_opts = base_opts.copy()
     std_opts['format'] = standard_q_map.get(q_key, 'best')
-    std_opts['http_headers'] = {
-        'User-Agent': st.session_state.user_agent
-    }
-    if st.session_state.user_cookie:
-        std_opts['http_headers']['Cookie'] = st.session_state.user_cookie
-        
-    return attempt_download(std_opts)
+    std_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_std.%(ext)s')
+    std_opts['progress_hooks'] = [progress_hook]
+
+    with yt_dlp.YoutubeDL(std_opts) as ydl:
+        info_std = ydl.extract_info(url, download=True)
+        expected_ext = 'mp4' if info_std.get('ext') != 'mp4' else info_std.get('ext', 'mp4')
+        file_path = os.path.join(temp_dir, f"{info_std['id']}_std.{expected_ext}")
+        if not os.path.exists(file_path):
+            file_path = ydl.prepare_filename(info_std)
+        return info_std, file_path
 
 # --- KHU VỰC NHẬP LINK ---
 _, mid_input, _ = st.columns([1, 3, 1])
@@ -280,7 +304,7 @@ if not target_link:
     st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
     if st.session_state.user_cookie:
-        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Sẵn sàng truy kích luồng Origin 4K.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Sẵn sàng kích hoạt máy ghép 4K.</div>", unsafe_allow_html=True)
     else:
         st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p hoặc 720p.</div>", unsafe_allow_html=True)
 
