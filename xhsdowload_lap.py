@@ -171,7 +171,7 @@ with header_col2:
 
 st.divider()
 
-# --- HÀM XỬ LÝ DỮ LIỆU CHÍNH ---
+# --- HÀM XỬ LÝ DỮ LIỆU CHÍNH VỚI LOGIC DỰ PHÒNG KÉP ---
 def extract_url(text):
     pattern = r'https?://(?:www\.xiaohongshu\.com/(?:discovery/item/|explore/)|xhslink\.com/)[a-zA-Z0-9?=&_%/-]+'
     match = re.search(pattern, text)
@@ -195,38 +195,61 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             progress_bar.progress(100)
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
 
-    q_map = {
+    # Hàm tải cốt lõi
+    def attempt_download(opts):
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            expected_ext = 'mp4' if info.get('ext') != 'mp4' else info.get('ext', 'mp4')
+            file_path = os.path.join(temp_dir, f"{info['id']}.{expected_ext}")
+            if not os.path.exists(file_path):
+                file_path = ydl.prepare_filename(info)
+            return info, file_path
+
+    # Tùy chọn cơ bản (Base options)
+    base_opts = {
+        'outtmpl': outtmpl,
+        'quiet': True,
+        'no_warnings': True,
+        'merge_output_format': 'mp4',
+        'progress_hooks': [progress_hook],
+        'nocache': True
+    }
+    
+    # Kịch bản 1: CÓ COOKIE + CHỌN ORIGIN (Truy kích luồng 4K)
+    if st.session_state.user_cookie and q_key == "Origin":
+        status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🚀 Đang truy kích luồng VIP 4K...</p>", unsafe_allow_html=True)
+        vip_opts = base_opts.copy()
+        vip_opts['format'] = "bestvideo+bestaudio/best"
+        vip_opts['format_sort'] = ['res', 'size', 'br', 'fps']
+        vip_opts['http_headers'] = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Cookie': st.session_state.user_cookie
+        }
+        
+        try:
+            return attempt_download(vip_opts)
+        except Exception as e:
+            # NẾU LỖI -> Không sập app, chuyển sang Lớp Dự Phòng
+            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Lỗi Cookie/Luồng VIP. Tự động kích hoạt tải dự phòng...</p>", unsafe_allow_html=True)
+            time.sleep(1.5) # Dừng 1.5s để anh Lập kịp nhìn thấy thông báo
+
+    # Kịch bản 2: TẢI TIÊU CHUẨN / LỚP DỰ PHÒNG AN TOÀN
+    standard_q_map = {
         "Origin": "bestvideo+bestaudio/best", 
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
         "720p": "bestvideo[height<=720]+bestaudio/best",
         "480p": "bestvideo[height<=480]+bestaudio/best"
     }
     
-    ydl_opts = {
-        'format': q_map.get(q_key, 'best'),
-        'outtmpl': outtmpl,
-        'quiet': True,
-        'no_warnings': True,
-        'merge_output_format': 'mp4',
-        'progress_hooks': [progress_hook],
-        'nocache': True  # BẮT BUỘC ÉP XÓA CACHE ĐỂ LẤY LINK MỚI NHẤT
-    }
-    
+    std_opts = base_opts.copy()
+    std_opts['format'] = standard_q_map.get(q_key, 'best')
     if st.session_state.user_cookie:
-        ydl_opts['http_headers'] = {
+        std_opts['http_headers'] = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Cookie': st.session_state.user_cookie
         }
-        if q_key == "Origin":
-            ydl_opts['format_sort'] = ['res', 'size', 'br', 'fps']
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        expected_ext = 'mp4' if info.get('ext') != 'mp4' else info.get('ext', 'mp4')
-        file_path = os.path.join(temp_dir, f"{info['id']}.{expected_ext}")
-        if not os.path.exists(file_path):
-            file_path = ydl.prepare_filename(info)
-        return info, file_path
+        
+    return attempt_download(std_opts)
 
 # --- GIAO DIỆN TƯƠNG TÁC ---
 _, mid_input, _ = st.columns([1, 3, 1])
@@ -248,7 +271,7 @@ if not target_link:
     st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
     if st.session_state.user_cookie:
-        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Anh có thể gom luồng Origin cao nhất.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Sẵn sàng truy kích luồng Origin cao nhất.</div>", unsafe_allow_html=True)
     else:
         st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p hoặc 720p.</div>", unsafe_allow_html=True)
 
@@ -263,7 +286,6 @@ def process_and_download(quality):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # Đặt lại bytes ảnh để tránh dính ảnh cũ bị lỗi
         st.session_state.thumbnail_bytes = None 
         
         try:
@@ -290,7 +312,6 @@ def process_and_download(quality):
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            # CƠ CHẾ LỌC ẢNH MẠNH MẼ HƠN
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
@@ -307,7 +328,6 @@ def process_and_download(quality):
 
             if thumb_url:
                 try:
-                    # THÊM GIẤY THÔNG HÀNH REFERER + COOKIE CHO ẢNH
                     img_headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                         'Referer': 'https://www.xiaohongshu.com/',
@@ -322,7 +342,7 @@ def process_and_download(quality):
             progress_bar.empty()
             status_text.empty()
         except Exception as e:
-            st.error(f"Đã xảy ra lỗi trong quá trình kéo luồng: {e}")
+            st.error(f"Đã xảy ra lỗi hệ thống: {e}")
 
 if b1.button("ORIGIN", disabled=is_disabled): process_and_download("Origin")
 if b2.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
