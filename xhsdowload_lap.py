@@ -124,21 +124,39 @@ if 'author_name' not in st.session_state:
 if 'user_cookie' not in st.session_state:
     st.session_state.user_cookie = ""
 
-# --- CỬA SỔ NỔI (DIALOG) CÀI ĐẶT ---
-@st.dialog("⚙️ CÀI ĐẶT HỆ THỐNG")
+# --- CỬA SỔ NỔI (DIALOG) CÀI ĐẶT BẢO MẬT ---
+@st.dialog("⚙️ CÀI ĐẶT BẢO MẬT")
 def settings_dialog():
-    st.markdown("**Nhập chuỗi Cookie tài khoản Xiaohongshu của anh vào đây:**")
-    st.caption("Mẹo: Mở trình duyệt, vào Xiaohongshu.com nhấn F12 -> Network -> Copy giá trị Cookie của anh dán vào đây.")
+    st.markdown("""
+        <div style="background-color: #fdfdfd; padding: 18px; border-radius: 12px; border: 1px solid #eaeaea; margin-bottom: 20px;">
+            <h4 style="color: #ff2442; margin-top: 0px; margin-bottom: 12px; font-weight: 800;">🔑 Cấp quyền luồng VIP (4K)</h4>
+            <p style="color: #666; font-size: 14px; margin-bottom: 8px; line-height: 1.5;">
+                Nhập chuỗi Cookie tài khoản Xiaohongshu của anh vào đây để hệ thống tự động tóm luồng chất lượng cao nhất.
+            </p>
+            <p style="color: #888; font-size: 13px; margin-bottom: 0px;">
+                <i>*Nhấn vào biểu tượng <b>con mắt 👁️</b> bên phải khung nhập để xem/ẩn nội dung.</i>
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
     
-    cookie_input = st.text_area("Cookie:", value=st.session_state.user_cookie, height=120, label_visibility="collapsed", placeholder="Ví dụ: web_session=xxxx; a1=yyyy; ...")
+    # Sử dụng text_input với type="password" tự động tích hợp nút bật/tắt hiển thị
+    cookie_input = st.text_input(
+        "Chuỗi Cookie:", 
+        value=st.session_state.user_cookie, 
+        type="password", 
+        placeholder="Dán mã Cookie bắt đầu bằng web_session=...",
+        label_visibility="collapsed"
+    )
     
-    if st.button("💾 LƯU COOKIE & ÁP DỤNG"):
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+    
+    if st.button("💾 LƯU BẢO MẬT & ÁP DỤNG"):
         st.session_state.user_cookie = cookie_input.strip()
-        st.success("✅ Đã ghi nhận Cookie! Cửa sổ sẽ tự đóng...")
+        st.success("✅ Đã lưu an toàn! Cửa sổ sẽ tự đóng...")
         time.sleep(1)
         st.rerun()
 
-# --- TIÊU ĐỀ & NÚT CÀI ĐẶT (BỐ CỤC MỚI) ---
+# --- TIÊU ĐỀ & NÚT CÀI ĐẶT ---
 header_col1, header_col2 = st.columns([11, 1])
 with header_col1:
     st.markdown("""
@@ -195,7 +213,7 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         'progress_hooks': [progress_hook],
     }
     
-    # KÍCH HOẠT COOKIE TỪ CỬA SỔ NỔI
+    # KÍCH HOẠT COOKIE
     if st.session_state.user_cookie:
         ydl_opts['http_headers'] = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
