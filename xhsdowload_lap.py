@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
 
-# CSS Tùy chỉnh: Ép độ dày chữ tối đa (900) và màu trắng cho mọi lớp phần tử trong nút
+# CSS Tùy chỉnh
 st.markdown("""
     <style>
     .stApp {
@@ -23,7 +23,6 @@ st.markdown("""
         font-family: 'Inter', 'Segoe UI', sans-serif;
     }
     
-    /* Thiết kế nút chọn chất lượng - Can thiệp sâu vào lớp chữ */
     div.stButton > button, div.stButton > button p, div.stButton > button span {
         background-color: #ff2442 !important;
         color: #ffffff !important;
@@ -59,7 +58,6 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    /* Thiết kế nút tải xuống */
     div.stDownloadButton > button, div.stDownloadButton > button p, div.stDownloadButton > button span {
         background-color: #ff2442 !important;
         color: #ffffff !important;
@@ -93,7 +91,6 @@ st.markdown("""
         font-weight: 600;
     }
 
-    /* CSS làm mượt ảnh preview, chống bể viền */
     img {
         border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -128,6 +125,8 @@ if 'current_link' not in st.session_state:
     st.session_state.current_link = None
 if 'thumbnail_bytes' not in st.session_state:
     st.session_state.thumbnail_bytes = None
+if 'author_name' not in st.session_state:
+    st.session_state.author_name = "Chưa xác định"
 
 # --- HÀM XỬ LÝ DỮ LIỆU ---
 def extract_url(text):
@@ -192,6 +191,7 @@ if target_link != st.session_state.current_link:
     st.session_state.video_data = None
     st.session_state.video_file_path = None
     st.session_state.thumbnail_bytes = None
+    st.session_state.author_name = "Chưa xác định"
     st.session_state.current_link = target_link
 
 if not target_link:
@@ -214,19 +214,38 @@ def process_and_download(quality):
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # --- CƠ CHẾ LỌC ẢNH CHẤT LƯỢNG CAO NHẤT ---
+            # --- CƠ CHẾ QUÉT SÂU TÊN TÁC GIẢ NÂNG CAO ---
+            found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
+            if not found_author:
+                try:
+                    # Lục lọi thẳng vào mã nguồn HTML của bài viết
+                    scrape_url = info.get('webpage_url') or target_link
+                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                    resp = requests.get(scrape_url, headers=headers, timeout=10, allow_redirects=True)
+                    if resp.status_code == 200:
+                        # Dùng Regex lùng bắt biến chứa tên user trong lõi JSON của XHS
+                        match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
+                        if match:
+                            raw_name = match.group(1)
+                            # Giải mã an toàn các ký tự Unicode tiếng Trung/Emoji
+                            found_author = json.loads('"' + raw_name + '"')
+                except Exception:
+                    pass
+            
+            st.session_state.author_name = found_author if found_author else "Chưa xác định"
+            
+            # Lọc ảnh chất lượng cao nhất
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
-                # Quét và tìm ảnh có diện tích (Dài x Rộng) lớn nhất
                 try:
                     best_thumb = max(thumbnails, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0))
                     thumb_url = best_thumb.get('url')
                 except Exception:
-                    thumb_url = thumbnails[-1].get('url') # Dự phòng lấy ảnh cuối cùng trong danh sách
+                    thumb_url = thumbnails[-1].get('url') 
             
             if not thumb_url:
-                thumb_url = info.get('thumbnail') # Bước đường cùng mới dùng ảnh mặc định
+                thumb_url = info.get('thumbnail') 
 
             if thumb_url:
                 try:
@@ -274,9 +293,8 @@ if st.session_state.video_data and st.session_state.video_file_path:
     with res_c2:
         st.subheader("📌 Chi tiết bản ghi")
         
-        author_name = data.get('uploader') or data.get('creator') or data.get('channel') or data.get('user') or 'Chưa xác định'
-        
-        st.write(f"**Tác giả:** {author_name}")
+        # Hiển thị Tên tác giả đã được quét sâu
+        st.write(f"**Tác giả:** {st.session_state.author_name}")
         st.write(f"**Tiêu đề:** {data.get('title', 'N/A')}")
         st.write(f"**Độ phân giải:** {data.get('width', 'N/A')}x{data.get('height', 'N/A')} | **FPS:** {data.get('fps', 'N/A')}")
         
@@ -297,7 +315,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
     st.info(description)
     
     # Nút COPY VĂN BẢN (Sử dụng HTML/JS nhúng)
-    meta_txt = f"TÁC GIẢ: {author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
+    meta_txt = f"TÁC GIẢ: {st.session_state.author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
     safe_txt = json.dumps(meta_txt) 
     
     copy_html = f"""
