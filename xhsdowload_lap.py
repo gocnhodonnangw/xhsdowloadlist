@@ -271,6 +271,19 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     st.divider()
     
+    # XỬ LÝ ĐẶT TÊN FILE THEO YÊU CẦU: @TenTacGia_TieuDe
+    raw_title = data.get('title', 'Tu_Lieu_XHS')
+    
+    # Loại bỏ các ký tự có thể gây lỗi hệ thống file ( \ / : * ? " < > | )
+    safe_author = re.sub(r'[\\/*?:"<>|\n\r]', "", st.session_state.author_name).strip()
+    safe_title = re.sub(r'[\\/*?:"<>|\n\r]', "", raw_title).strip()
+    
+    # Đề phòng tiêu đề quá dài gây lỗi OS (giới hạn 60 ký tự)
+    if len(safe_title) > 60:
+        safe_title = safe_title[:60] + "..."
+        
+    export_filename = f"@{safe_author}_{safe_title}"
+    
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
         if st.session_state.thumbnail_bytes:
@@ -278,7 +291,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
             st.download_button(
                 label="🖼️ TẢI ẢNH BÌA",
                 data=st.session_state.thumbnail_bytes,
-                file_name=f"Thumbnail_Lap_{data.get('id', 'xhs')}.jpg",
+                file_name=f"{export_filename}.jpg",
                 mime="image/jpeg",
                 use_container_width=True
             )
@@ -300,7 +313,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
                 st.download_button(
                     label="📥 TẢI XUỐNG VIDEO",
                     data=video_file,
-                    file_name=f"TuLieu_Lap_{data.get('id', 'video')}.mp4",
+                    file_name=f"{export_filename}.mp4",
                     mime="video/mp4",
                     use_container_width=True
                 )
@@ -310,7 +323,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
     st.markdown("### 📝 Nội dung mô tả bài viết")
     description = data.get('description') or 'Không có mô tả chữ.'
     
-    # CƠ CHẾ HIỂN THỊ VĂN BẢN AN TOÀN (CHỐNG LỖI HIỂN THỊ KHỔNG LỒ)
     safe_desc = html.escape(description)
     st.markdown(f"""
         <div style="background-color: #f8f9fa; border-left: 4px solid #ff2442; padding: 15px; border-radius: 8px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; color: #333; margin-bottom: 20px;">
