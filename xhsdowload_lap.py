@@ -5,6 +5,7 @@ import os
 import tempfile
 import requests
 import json
+import html
 import streamlit.components.v1 as components
 
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
@@ -214,27 +215,24 @@ def process_and_download(quality):
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # --- CƠ CHẾ QUÉT SÂU TÊN TÁC GIẢ NÂNG CAO ---
+            # Quét sâu tên tác giả
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             if not found_author:
                 try:
-                    # Lục lọi thẳng vào mã nguồn HTML của bài viết
                     scrape_url = info.get('webpage_url') or target_link
                     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
                     resp = requests.get(scrape_url, headers=headers, timeout=10, allow_redirects=True)
                     if resp.status_code == 200:
-                        # Dùng Regex lùng bắt biến chứa tên user trong lõi JSON của XHS
                         match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
                         if match:
                             raw_name = match.group(1)
-                            # Giải mã an toàn các ký tự Unicode tiếng Trung/Emoji
                             found_author = json.loads('"' + raw_name + '"')
                 except Exception:
                     pass
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            # Lọc ảnh chất lượng cao nhất
+            # Lọc ảnh bìa nét nhất
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
@@ -293,7 +291,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
     with res_c2:
         st.subheader("📌 Chi tiết bản ghi")
         
-        # Hiển thị Tên tác giả đã được quét sâu
         st.write(f"**Tác giả:** {st.session_state.author_name}")
         st.write(f"**Tiêu đề:** {data.get('title', 'N/A')}")
         st.write(f"**Độ phân giải:** {data.get('width', 'N/A')}x{data.get('height', 'N/A')} | **FPS:** {data.get('fps', 'N/A')}")
@@ -312,9 +309,16 @@ if st.session_state.video_data and st.session_state.video_file_path:
 
     st.markdown("### 📝 Nội dung mô tả bài viết")
     description = data.get('description') or 'Không có mô tả chữ.'
-    st.info(description)
     
-    # Nút COPY VĂN BẢN (Sử dụng HTML/JS nhúng)
+    # CƠ CHẾ HIỂN THỊ VĂN BẢN AN TOÀN (CHỐNG LỖI HIỂN THỊ KHỔNG LỒ)
+    safe_desc = html.escape(description)
+    st.markdown(f"""
+        <div style="background-color: #f8f9fa; border-left: 4px solid #ff2442; padding: 15px; border-radius: 8px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; color: #333; margin-bottom: 20px;">
+            {safe_desc}
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Nút COPY VĂN BẢN 
     meta_txt = f"TÁC GIẢ: {st.session_state.author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
     safe_txt = json.dumps(meta_txt) 
     
