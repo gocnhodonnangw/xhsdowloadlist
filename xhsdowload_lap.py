@@ -92,6 +92,12 @@ st.markdown("""
         margin-bottom: 25px;
         font-weight: 600;
     }
+
+    /* CSS làm mượt ảnh preview, chống bể viền */
+    img {
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
     
     .footer {
         text-align: center;
@@ -208,7 +214,20 @@ def process_and_download(quality):
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            thumb_url = info.get('thumbnail')
+            # --- CƠ CHẾ LỌC ẢNH CHẤT LƯỢNG CAO NHẤT ---
+            thumbnails = info.get('thumbnails', [])
+            thumb_url = None
+            if thumbnails:
+                # Quét và tìm ảnh có diện tích (Dài x Rộng) lớn nhất
+                try:
+                    best_thumb = max(thumbnails, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0))
+                    thumb_url = best_thumb.get('url')
+                except Exception:
+                    thumb_url = thumbnails[-1].get('url') # Dự phòng lấy ảnh cuối cùng trong danh sách
+            
+            if not thumb_url:
+                thumb_url = info.get('thumbnail') # Bước đường cùng mới dùng ảnh mặc định
+
             if thumb_url:
                 try:
                     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
@@ -238,7 +257,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
         if st.session_state.thumbnail_bytes:
-            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước tư liệu", use_container_width=True)
+            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước chất lượng cao", use_container_width=True)
             st.download_button(
                 label="🖼️ TẢI ẢNH BÌA",
                 data=st.session_state.thumbnail_bytes,
@@ -279,7 +298,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     # Nút COPY VĂN BẢN (Sử dụng HTML/JS nhúng)
     meta_txt = f"TÁC GIẢ: {author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
-    safe_txt = json.dumps(meta_txt) # Mã hóa an toàn chuỗi văn bản cho JavaScript
+    safe_txt = json.dumps(meta_txt) 
     
     copy_html = f"""
     <style>
@@ -291,7 +310,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
         border: none !important;
         border-radius: 8px !important;
         width: 100% !important;
-        height: 48px !important; /* Chiều cao đồng bộ với Streamlit button */
+        height: 48px !important; 
         font-size: 16px !important;
         font-weight: 900 !important;
         letter-spacing: 0.5px !important;
@@ -317,7 +336,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
     }}
     </script>
     """
-    # Nhúng khối HTML vào Streamlit
     components.html(copy_html, height=60)
 
 # Chân trang
