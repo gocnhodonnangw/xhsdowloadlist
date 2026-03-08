@@ -2,8 +2,8 @@ import streamlit as st
 import yt_dlp
 import re
 import os
-import time
 import tempfile
+import requests
 
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
@@ -94,8 +94,12 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Tiêu đề
-st.markdown("<h1 class='centered-text' style='color: #ff2442; margin-bottom: 0;'>Xiaohongshu - Rednote Collector</h1>", unsafe_allow_html=True)
-st.markdown("<p class='centered-text' style='font-size: 1.1em; color: #666 !important;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>", unsafe_allow_html=True)
+st.markdown("""
+    <div style="text-align: left; margin-bottom: 30px; padding-top: 10px;">
+        <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 800; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
+        <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>
+    </div>
+""", unsafe_allow_html=True)
 
 # --- QUẢN LÝ TRẠNG THÁI (SESSION STATE) ---
 if 'video_data' not in st.session_state:
@@ -104,6 +108,8 @@ if 'video_file_path' not in st.session_state:
     st.session_state.video_file_path = None
 if 'current_link' not in st.session_state:
     st.session_state.current_link = None
+if 'thumbnail_bytes' not in st.session_state:
+    st.session_state.thumbnail_bytes = None
 
 # --- HÀM XỬ LÝ DỮ LIỆU ---
 def extract_url(text):
@@ -111,13 +117,28 @@ def extract_url(text):
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
-def download_video_to_temp(url, q_key):
-    """Gom luồng và tải trực tiếp video về bộ nhớ tạm"""
+def download_video_to_temp(url, q_key, progress_bar, status_text):
+    """Gom luồng và tải trực tiếp video về bộ nhớ tạm, kèm cập nhật UI"""
     temp_dir = tempfile.gettempdir()
     outtmpl = os.path.join(temp_dir, '%(id)s.%(ext)s')
     
+    def progress_hook(d):
+        if d['status'] == 'downloading':
+            percent_str = d.get('_percent_str', '0.0%')
+            clean_percent = re.sub(r'\x1b\[[0-9;]*m', '', percent_str).replace('%', '').strip()
+            
+            try:
+                percent = float(clean_percent)
+                progress_bar.progress(int(percent))
+                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 600;'>Đang kéo luồng: {percent}%</p>", unsafe_allow_html=True)
+            except ValueError:
+                pass
+        elif d['status'] == 'finished':
+            progress_bar.progress(100)
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 600;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
+
     q_map = {
-        "Origin": "bestvideo+bestaudio/best",
+        "Origin": "bestvideo[fps>30]+bestaudio/bestvideo+bestaudio/best", 
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
         "720p": "bestvideo[height<=720]+bestaudio/best",
         "480p": "bestvideo[height<=480]+bestaudio/best"
@@ -128,18 +149,16 @@ def download_video_to_temp(url, q_key):
         'outtmpl': outtmpl,
         'quiet': True,
         'no_warnings': True,
-        'merge_output_format': 'mp4', # Đảm bảo xuất ra định dạng MP4 thân thiện
+        'merge_output_format': 'mp4',
+        'progress_hooks': [progress_hook],
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        # Tải video thật về máy chủ (download=True) thay vì chỉ lấy link
         info = ydl.extract_info(url, download=True)
         
-        # Xác định đường dẫn file đã tải
         expected_ext = 'mp4' if info.get('ext') != 'mp4' else info.get('ext', 'mp4')
         file_path = os.path.join(temp_dir, f"{info['id']}.{expected_ext}")
         
-        # Dự phòng trường hợp yt-dlp không đổi tên file thành công
         if not os.path.exists(file_path):
             file_path = ydl.prepare_filename(info)
             
@@ -156,10 +175,10 @@ with mid_input:
 
 target_link = extract_url(raw_input)
 
-# Nếu dán link mới, reset lại dữ liệu cũ trên màn hình
 if target_link != st.session_state.current_link:
     st.session_state.video_data = None
     st.session_state.video_file_path = None
+    st.session_state.thumbnail_bytes = None
     st.session_state.current_link = target_link
 
 if not target_link:
@@ -172,19 +191,34 @@ _, b1, b2, b3, b4, _ = st.columns([1, 2, 2, 2, 2, 1])
 
 is_disabled = False if target_link else True
 
-# Xử lý khi nhấn nút tải
 def process_and_download(quality):
     _, p_col, _ = st.columns([1, 4, 1])
     with p_col:
-        with st.spinner(f"Đang kéo luồng {quality} về kho lưu trữ, anh Lập đợi một chút nhé..."):
-            try:
-                info, path = download_video_to_temp(target_link, quality)
-                st.session_state.video_data = info
-                st.session_state.video_file_path = path
-            except Exception as e:
-                st.error(f"Đã xảy ra lỗi trong quá trình kéo luồng: {e}")
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            info, path = download_video_to_temp(target_link, quality, progress_bar, status_text)
+            st.session_state.video_data = info
+            st.session_state.video_file_path = path
+            
+            # Xử lý tải thumbnail ngầm để tránh lỗi 403
+            thumb_url = info.get('thumbnail')
+            if thumb_url:
+                try:
+                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                    resp = requests.get(thumb_url, headers=headers, timeout=10)
+                    if resp.status_code == 200:
+                        st.session_state.thumbnail_bytes = resp.content
+                except:
+                    pass
+            
+            progress_bar.empty()
+            status_text.empty()
+        except Exception as e:
+            st.error(f"Đã xảy ra lỗi trong quá trình kéo luồng: {e}")
 
-if b1.button("CHẤT LƯỢNG GỐC", disabled=is_disabled): process_and_download("Origin")
+if b1.button("ORIGIN", disabled=is_disabled): process_and_download("Origin")
 if b2.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
 if b3.button("BẢN 720P", disabled=is_disabled): process_and_download("720p")
 if b4.button("BẢN 480P", disabled=is_disabled): process_and_download("480p")
@@ -196,16 +230,32 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     st.divider()
     
-    # Kết quả hiển thị
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
-        st.image(data.get('thumbnail'), caption="Ảnh xem trước tư liệu", use_container_width=True)
+        # Hiển thị Thumbnail chuẩn xác từ bytes
+        if st.session_state.thumbnail_bytes:
+            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước tư liệu", use_container_width=True)
+            # Thêm nút tải ảnh bìa
+            st.download_button(
+                label="🖼️ TẢI ẢNH BÌA (.JPG)",
+                data=st.session_state.thumbnail_bytes,
+                file_name=f"Thumbnail_Lap_{data.get('id', 'xhs')}.jpg",
+                mime="image/jpeg",
+                use_container_width=True
+            )
+        else:
+            # Dự phòng nếu lấy ảnh thất bại
+            if data.get('thumbnail'):
+                st.image(data.get('thumbnail'), caption="Ảnh xem trước tư liệu", use_container_width=True)
+            else:
+                st.info("Không có ảnh xem trước")
+
     with res_c2:
         st.subheader("📌 Chi tiết bản ghi")
         st.write(f"**Tác giả:** {data.get('uploader', 'N/A')}")
         st.write(f"**Tiêu đề:** {data.get('title', 'N/A')}")
+        st.write(f"**Độ phân giải:** {data.get('width', 'N/A')}x{data.get('height', 'N/A')} | **FPS:** {data.get('fps', 'N/A')}")
         
-        # NÚT TẢI VIDEO XUỐNG MÁY TÍNH
         if os.path.exists(file_path):
             with open(file_path, "rb") as video_file:
                 st.download_button(
@@ -218,12 +268,10 @@ if st.session_state.video_data and st.session_state.video_file_path:
         else:
             st.error("Không tìm thấy file video trong bộ nhớ tạm. Hãy thử tải lại.")
 
-    # Nội dung văn bản
     st.markdown("### 📝 Nội dung mô tả bài viết")
     description = data.get('description') or 'Không có mô tả chữ.'
     st.info(description)
     
-    # NÚT LƯU VĂN BẢN
     meta_txt = f"TÁC GIẢ: {data.get('uploader')}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
     st.download_button(
         label="💾 LƯU FILE VĂN BẢN (.TXT)", 
