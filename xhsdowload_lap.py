@@ -12,7 +12,7 @@ import streamlit.components.v1 as components
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
 
-# CSS Tùy chỉnh: Giao diện Rednote, Nút chữ trắng siêu dày, Bo góc mượt mà
+# CSS Tùy chỉnh
 st.markdown("""
     <style>
     .stApp {
@@ -25,7 +25,6 @@ st.markdown("""
         font-family: 'Inter', 'Segoe UI', sans-serif;
     }
     
-    /* Thiết kế 4 nút chọn chất lượng */
     div.stButton > button, div.stButton > button p, div.stButton > button span {
         background-color: #ff2442 !important;
         color: #ffffff !important;
@@ -61,7 +60,6 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    /* Thiết kế nút tải xuống (Download Button) */
     div.stDownloadButton > button, div.stDownloadButton > button p, div.stDownloadButton > button span {
         background-color: #ff2442 !important;
         color: #ffffff !important;
@@ -80,7 +78,6 @@ st.markdown("""
         background-color: #e61e3a !important;
     }
 
-    /* Tùy chỉnh thanh tiến trình */
     .stProgress > div > div > div > div {
         background-color: #ff2442 !important;
     }
@@ -97,7 +94,6 @@ st.markdown("""
         font-weight: 600;
     }
 
-    /* Bo góc và đổ bóng cho ảnh Preview */
     img {
         border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -129,7 +125,6 @@ if 'author_name' not in st.session_state:
 if 'user_cookie' not in st.session_state:
     st.session_state.user_cookie = ""
 if 'user_agent' not in st.session_state:
-    # Mặc định dùng UA của Chrome Windows
     st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # --- CỬA SỔ NỔI (DIALOG) CÀI ĐẶT BẢO MẬT ---
@@ -140,9 +135,6 @@ def settings_dialog():
             <h4 style="color: #ff2442; margin-top: 0px; margin-bottom: 12px; font-weight: 800;">🔑 Mở khóa luồng VIP 4K</h4>
             <p style="color: #666; font-size: 14px; margin-bottom: 8px; line-height: 1.5;">
                 Để tải chất lượng gốc, hệ thống cần quyền truy cập hợp lệ. Hãy cung cấp <b>Cookie</b> và <b>User-Agent</b> từ trình duyệt của anh.
-            </p>
-            <p style="color: #888; font-size: 13px; margin-bottom: 0px;">
-                <i>*Nhấn vào biểu tượng <b>con mắt 👁️</b> bên phải khung để xem/ẩn Cookie.</i>
             </p>
         </div>
     """, unsafe_allow_html=True)
@@ -175,7 +167,7 @@ def settings_dialog():
         time.sleep(1)
         st.rerun()
 
-# --- TIÊU ĐỀ & NÚT CÀI ĐẶT GÓC PHẢI ---
+# --- TIÊU ĐỀ & NÚT CÀI ĐẶT ---
 header_col1, header_col2 = st.columns([11, 1])
 with header_col1:
     st.markdown("""
@@ -191,7 +183,7 @@ with header_col2:
 
 st.divider()
 
-# --- HÀM XỬ LÝ DỮ LIỆU: KIỂM TRA KÉP (DUAL-CHECK FALLBACK) ---
+# --- HÀM XỬ LÝ DỮ LIỆU ---
 def extract_url(text):
     pattern = r'https?://(?:www\.xiaohongshu\.com/(?:discovery/item/|explore/)|xhslink\.com/)[a-zA-Z0-9?=&_%/-]+'
     match = re.search(pattern, text)
@@ -213,9 +205,8 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
                 pass
         elif d['status'] == 'finished':
             progress_bar.progress(100)
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói ghép file...</p>", unsafe_allow_html=True)
 
-    # Hàm tải lõi
     def attempt_download(opts):
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -225,17 +216,17 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
                 file_path = ydl.prepare_filename(info)
             return info, file_path
 
-    # Cấu hình cơ bản (Xóa Cache chống lỗi ảnh)
+    # CẤU HÌNH CỐT LÕI (Bổ sung ép đường dẫn FFmpeg cho môi trường Cloud Linux)
     base_opts = {
         'outtmpl': outtmpl,
         'quiet': True,
         'no_warnings': True,
         'merge_output_format': 'mp4',
         'progress_hooks': [progress_hook],
-        'nocache': True 
+        'nocache': True,
+        'ffmpeg_location': '/usr/bin/ffmpeg' # Trỏ tay vào thư mục cài đặt mặc định trên Streamlit Cloud
     }
     
-    # LỚP 1: NẾU CÓ COOKIE + CHỌN ORIGIN -> TRUY KÍCH LUỒNG 4K
     if st.session_state.user_cookie and q_key == "Origin":
         status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🚀 Đang truy kích luồng VIP Origin...</p>", unsafe_allow_html=True)
         vip_opts = base_opts.copy()
@@ -249,11 +240,9 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         try:
             return attempt_download(vip_opts)
         except Exception as e:
-            # Nếu Cookie chết/Luồng VIP lỗi -> Kích hoạt hạ cánh an toàn
             status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Lỗi luồng VIP. Tự động chuyển tải tiêu chuẩn...</p>", unsafe_allow_html=True)
             time.sleep(1.5)
 
-    # LỚP 2: TẢI TIÊU CHUẨN (HẠ CÁNH AN TOÀN)
     standard_q_map = {
         "Origin": "bestvideo+bestaudio/best", 
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
@@ -280,7 +269,6 @@ with mid_input:
 
 target_link = extract_url(raw_input)
 
-# Làm mới State nếu link thay đổi
 if target_link != st.session_state.current_link:
     st.session_state.video_data = None
     st.session_state.video_file_path = None
@@ -288,7 +276,6 @@ if target_link != st.session_state.current_link:
     st.session_state.author_name = "Chưa xác định"
     st.session_state.current_link = target_link
 
-# Báo cáo trạng thái Link & Cookie
 if not target_link:
     st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
@@ -307,8 +294,6 @@ def process_and_download(quality):
     with p_col:
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
-        # Reset ảnh cũ
         st.session_state.thumbnail_bytes = None 
         
         try:
@@ -316,7 +301,6 @@ def process_and_download(quality):
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # --- QUÉT SÂU TÊN TÁC GIẢ (THUẬT TOÁN MẠNH MẼ HƠN) ---
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             if not found_author:
                 try:
@@ -336,7 +320,6 @@ def process_and_download(quality):
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            # --- LỌC ẢNH BÌA CHẤT LƯỢNG CAO NHẤT ---
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
@@ -351,7 +334,6 @@ def process_and_download(quality):
             if not thumb_url:
                 thumb_url = info.get('thumbnail') 
 
-            # Tải ảnh ngầm chống lỗi 403 bằng Referer
             if thumb_url:
                 try:
                     img_headers = {
@@ -375,22 +357,18 @@ if b2.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
 if b3.button("BẢN 720P", disabled=is_disabled): process_and_download("720p")
 if b4.button("BẢN 480P", disabled=is_disabled): process_and_download("480p")
 
-# --- HIỂN THỊ KẾT QUẢ TỪ SESSION STATE ---
+# --- HIỂN THỊ KẾT QUẢ ---
 if st.session_state.video_data and st.session_state.video_file_path:
     data = st.session_state.video_data
     file_path = st.session_state.video_file_path
     
     st.divider()
     
-    # --- ĐỊNH DẠNG TÊN FILE XUẤT: @TenTacGia_TieuDe ---
     raw_title = data.get('title', 'Tu_Lieu_XHS')
     safe_author = re.sub(r'[\\/*?:"<>|\n\r]', "", st.session_state.author_name).strip()
     safe_title = re.sub(r'[\\/*?:"<>|\n\r]', "", raw_title).strip()
-    
-    # Cắt ngắn tiêu đề nếu quá dài để chống lỗi Windows/Mac
     if len(safe_title) > 60:
         safe_title = safe_title[:60] + "..."
-        
     export_filename = f"@{safe_author}_{safe_title}"
     
     res_c1, res_c2 = st.columns([1, 1.4])
@@ -412,7 +390,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
 
     with res_c2:
         st.subheader("📌 Chi tiết bản ghi")
-        
         st.write(f"**Tác giả:** {st.session_state.author_name}")
         st.write(f"**Tiêu đề:** {data.get('title', 'N/A')}")
         st.write(f"**Độ phân giải:** {data.get('width', 'N/A')}x{data.get('height', 'N/A')} | **FPS:** {data.get('fps', 'N/A')}")
@@ -420,7 +397,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
         if os.path.exists(file_path):
             file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
             st.write(f"**Dung lượng tải về:** {file_size_mb} MB")
-            
             with open(file_path, "rb") as video_file:
                 st.download_button(
                     label="📥 TẢI XUỐNG VIDEO",
@@ -434,8 +410,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
 
     st.markdown("### 📝 Nội dung mô tả bài viết")
     description = data.get('description') or 'Không có mô tả chữ.'
-    
-    # Ép an toàn Markdown để chống lỗi Font chữ khổng lồ
     safe_desc = html.escape(description)
     st.markdown(f"""
         <div style="background-color: #f8f9fa; border-left: 4px solid #ff2442; padding: 15px; border-radius: 8px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; color: #333; margin-bottom: 20px;">
@@ -443,7 +417,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
         </div>
     """, unsafe_allow_html=True)
     
-    # --- NÚT COPY VĂN BẢN (JavaScript Embed) ---
     meta_txt = f"TÁC GIẢ: {st.session_state.author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
     safe_txt = json.dumps(meta_txt) 
     
@@ -485,7 +458,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
     """
     components.html(copy_html, height=60)
 
-# --- CHÂN TRANG ---
+# Chân trang
 st.markdown("""
     <div class='footer'>
         Thiết kế riêng cho mục đích nghiên cứu văn học của <b>Tác giả Lập</b>.<br>
