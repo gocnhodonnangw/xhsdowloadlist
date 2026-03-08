@@ -4,11 +4,13 @@ import re
 import os
 import tempfile
 import requests
+import json
+import streamlit.components.v1 as components
 
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
 
-# CSS Tùy chỉnh: Đồng bộ nền đỏ, chữ trắng cho TẤT CẢ các nút
+# CSS Tùy chỉnh: Ép độ dày chữ tối đa (900) và màu trắng cho mọi lớp phần tử trong nút
 st.markdown("""
     <style>
     .stApp {
@@ -21,18 +23,21 @@ st.markdown("""
         font-family: 'Inter', 'Segoe UI', sans-serif;
     }
     
-    /* Thiết kế nút chọn chất lượng (Đã đổi sang nền đỏ chữ trắng) */
-    div.stButton > button {
+    /* Thiết kế nút chọn chất lượng - Can thiệp sâu vào lớp chữ */
+    div.stButton > button, div.stButton > button p, div.stButton > button span {
         background-color: #ff2442 !important;
         color: #ffffff !important;
         border: none !important;
         border-radius: 12px !important;
-        width: 100% !important;
-        height: 52px !important;
-        font-size: 15px !important;
-        font-weight: 800 !important; 
+        font-size: 16px !important; 
+        font-weight: 900 !important;
         letter-spacing: 0.5px !important; 
         transition: all 0.2s ease;
+    }
+    
+    div.stButton > button {
+        width: 100% !important;
+        height: 52px !important;
         box-shadow: 6px 6px 15px rgba(255, 36, 66, 0.3) !important;
     }
     
@@ -47,27 +52,29 @@ st.markdown("""
         box-shadow: 2px 2px 5px rgba(255, 36, 66, 0.3) !important;
     }
 
-    div.stButton > button:disabled {
-        opacity: 0.5;
+    div.stButton > button:disabled, div.stButton > button:disabled p {
         background-color: #cccccc !important;
         color: #ffffff !important;
+        opacity: 0.8 !important;
         box-shadow: none !important;
     }
 
     /* Thiết kế nút tải xuống */
-    div.stDownloadButton > button {
+    div.stDownloadButton > button, div.stDownloadButton > button p, div.stDownloadButton > button span {
         background-color: #ff2442 !important;
         color: #ffffff !important;
         border: none !important;
-        font-weight: 800 !important; 
+        font-size: 16px !important;
+        font-weight: 900 !important;
         letter-spacing: 0.5px !important;
-        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.5) !important;
+    }
+    
+    div.stDownloadButton > button {
+        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important;
     }
 
     div.stDownloadButton > button:hover {
         background-color: #e61e3a !important;
-        color: #ffffff !important;
-        border: none !important;
     }
 
     .stProgress > div > div > div > div {
@@ -83,7 +90,7 @@ st.markdown("""
         padding: 12px;
         border-radius: 10px;
         margin-bottom: 25px;
-        font-weight: 500;
+        font-weight: 600;
     }
     
     .footer {
@@ -101,7 +108,7 @@ st.markdown("""
 # Tiêu đề
 st.markdown("""
     <div style="text-align: left; margin-bottom: 30px; padding-top: 10px;">
-        <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 800; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
+        <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 900; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
         <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>
     </div>
 """, unsafe_allow_html=True)
@@ -133,12 +140,12 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             try:
                 percent = float(clean_percent)
                 progress_bar.progress(int(percent))
-                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 600;'>Đang kéo luồng: {percent}%</p>", unsafe_allow_html=True)
+                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo luồng: {percent}%</p>", unsafe_allow_html=True)
             except ValueError:
                 pass
         elif d['status'] == 'finished':
             progress_bar.progress(100)
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 600;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
 
     q_map = {
         "Origin": "bestvideo[fps>30]+bestaudio/bestvideo+bestaudio/best", 
@@ -232,7 +239,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
     with res_c1:
         if st.session_state.thumbnail_bytes:
             st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước tư liệu", use_container_width=True)
-            # Đã xóa (.JPG)
             st.download_button(
                 label="🖼️ TẢI ẢNH BÌA",
                 data=st.session_state.thumbnail_bytes,
@@ -257,7 +263,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
         
         if os.path.exists(file_path):
             with open(file_path, "rb") as video_file:
-                # Đã xóa (.MP4)
                 st.download_button(
                     label="📥 TẢI XUỐNG VIDEO",
                     data=video_file,
@@ -272,14 +277,48 @@ if st.session_state.video_data and st.session_state.video_file_path:
     description = data.get('description') or 'Không có mô tả chữ.'
     st.info(description)
     
+    # Nút COPY VĂN BẢN (Sử dụng HTML/JS nhúng)
     meta_txt = f"TÁC GIẢ: {author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
-    # Đã xóa (.TXT)
-    st.download_button(
-        label="💾 LƯU FILE VĂN BẢN", 
-        data=meta_txt, 
-        file_name=f"TuLieu_Lap_{data.get('id', 'xhs')}.txt",
-        use_container_width=True
-    )
+    safe_txt = json.dumps(meta_txt) # Mã hóa an toàn chuỗi văn bản cho JavaScript
+    
+    copy_html = f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
+    body {{ margin: 0; padding: 0; background-color: transparent; }}
+    button {{
+        background-color: #ff2442 !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        height: 48px !important; /* Chiều cao đồng bộ với Streamlit button */
+        font-size: 16px !important;
+        font-weight: 900 !important;
+        letter-spacing: 0.5px !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif !important;
+        cursor: pointer;
+        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important;
+        transition: all 0.2s ease !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }}
+    button:hover {{ background-color: #e61e3a !important; }}
+    button:active {{ transform: translate(2px, 2px) !important; box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3) !important; }}
+    </style>
+    <button id="cpy-btn" onclick='copyToClipboard()'>📋 COPY VĂN BẢN</button>
+    <script>
+    function copyToClipboard() {{
+        navigator.clipboard.writeText({safe_txt}).then(function() {{
+            const btn = document.getElementById('cpy-btn');
+            btn.innerText = '✅ ĐÃ COPY THÀNH CÔNG';
+            setTimeout(() => btn.innerText = '📋 COPY VĂN BẢN', 2000);
+        }});
+    }}
+    </script>
+    """
+    # Nhúng khối HTML vào Streamlit
+    components.html(copy_html, height=60)
 
 # Chân trang
 st.markdown("""
