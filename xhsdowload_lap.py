@@ -6,6 +6,7 @@ import tempfile
 import requests
 import json
 import html
+import time
 import streamlit.components.v1 as components
 
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
@@ -109,14 +110,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Tiêu đề
-st.markdown("""
-    <div style="text-align: left; margin-bottom: 20px; padding-top: 10px;">
-        <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 900; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
-        <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>
-    </div>
-""", unsafe_allow_html=True)
-
 # --- QUẢN LÝ TRẠNG THÁI (SESSION STATE) ---
 if 'video_data' not in st.session_state:
     st.session_state.video_data = None
@@ -131,17 +124,35 @@ if 'author_name' not in st.session_state:
 if 'user_cookie' not in st.session_state:
     st.session_state.user_cookie = ""
 
-# --- KHU VỰC CÀI ĐẶT COOKIE (MỞ KHÓA TẦNG VIP) ---
-st.divider()
-with st.expander("⚙️ CÀI ĐẶT HỆ THỐNG (NHẬP COOKIE MỞ KHÓA 4K)"):
+# --- CỬA SỔ NỔI (DIALOG) CÀI ĐẶT ---
+@st.dialog("⚙️ CÀI ĐẶT HỆ THỐNG")
+def settings_dialog():
     st.markdown("**Nhập chuỗi Cookie tài khoản Xiaohongshu của anh vào đây:**")
     st.caption("Mẹo: Mở trình duyệt, vào Xiaohongshu.com nhấn F12 -> Network -> Copy giá trị Cookie của anh dán vào đây.")
     
-    cookie_input = st.text_area("Cookie:", value=st.session_state.user_cookie, height=80, label_visibility="collapsed", placeholder="Ví dụ: web_session=xxxx; a1=yyyy; ...")
+    cookie_input = st.text_area("Cookie:", value=st.session_state.user_cookie, height=120, label_visibility="collapsed", placeholder="Ví dụ: web_session=xxxx; a1=yyyy; ...")
     
     if st.button("💾 LƯU COOKIE & ÁP DỤNG"):
         st.session_state.user_cookie = cookie_input.strip()
-        st.success("✅ Đã ghi nhận Cookie! Hệ thống sẽ kích hoạt phương thức kiểm tra kép khi gom luồng.")
+        st.success("✅ Đã ghi nhận Cookie! Cửa sổ sẽ tự đóng...")
+        time.sleep(1)
+        st.rerun()
+
+# --- TIÊU ĐỀ & NÚT CÀI ĐẶT (BỐ CỤC MỚI) ---
+header_col1, header_col2 = st.columns([11, 1])
+with header_col1:
+    st.markdown("""
+        <div style="text-align: left; margin-bottom: 20px; padding-top: 10px;">
+            <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 900; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
+            <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>
+        </div>
+    """, unsafe_allow_html=True)
+with header_col2:
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    if st.button("⚙️", help="Nhập Cookie mở khóa 4K"):
+        settings_dialog()
+
+st.divider()
 
 # --- HÀM XỬ LÝ DỮ LIỆU CHÍNH ---
 def extract_url(text):
@@ -167,7 +178,7 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             progress_bar.progress(100)
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
 
-    # PHƯƠNG THỨC KIỂM TRA KÉP (Dual-check mapping)
+    # PHƯƠNG THỨC KIỂM TRA KÉP
     q_map = {
         "Origin": "bestvideo+bestaudio/best", 
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
@@ -184,13 +195,12 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         'progress_hooks': [progress_hook],
     }
     
-    # KÍCH HOẠT COOKIE NẾU CÓ
+    # KÍCH HOẠT COOKIE TỪ CỬA SỔ NỔI
     if st.session_state.user_cookie:
         ydl_opts['http_headers'] = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Cookie': st.session_state.user_cookie
         }
-        # Nếu chọn Origin và có Cookie, ép bộ lọc lấy dung lượng/độ phân giải lớn nhất
         if q_key == "Origin":
             ydl_opts['format_sort'] = ['res', 'size', 'br', 'fps']
     
@@ -203,8 +213,6 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         return info, file_path
 
 # --- GIAO DIỆN TƯƠNG TÁC ---
-st.divider()
-
 _, mid_input, _ = st.columns([1, 3, 1])
 with mid_input:
     raw_input = st.text_area("Dán nội dung bài viết hoặc link vào đây:", 
@@ -223,7 +231,6 @@ if target_link != st.session_state.current_link:
 if not target_link:
     st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
-    # Hiển thị thông báo phụ thuộc vào trạng thái Cookie
     if st.session_state.user_cookie:
         st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Anh có thể gom luồng Origin cao nhất.</div>", unsafe_allow_html=True)
     else:
@@ -244,7 +251,6 @@ def process_and_download(quality):
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # Quét sâu tên tác giả
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             if not found_author:
                 try:
@@ -264,7 +270,6 @@ def process_and_download(quality):
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            # Lọc ảnh bìa nét nhất
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
