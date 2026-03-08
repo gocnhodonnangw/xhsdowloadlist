@@ -111,7 +111,7 @@ st.markdown("""
 
 # Tiêu đề
 st.markdown("""
-    <div style="text-align: left; margin-bottom: 30px; padding-top: 10px;">
+    <div style="text-align: left; margin-bottom: 20px; padding-top: 10px;">
         <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 900; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
         <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>
     </div>
@@ -128,8 +128,22 @@ if 'thumbnail_bytes' not in st.session_state:
     st.session_state.thumbnail_bytes = None
 if 'author_name' not in st.session_state:
     st.session_state.author_name = "Chưa xác định"
+if 'user_cookie' not in st.session_state:
+    st.session_state.user_cookie = ""
 
-# --- HÀM XỬ LÝ DỮ LIỆU ---
+# --- KHU VỰC CÀI ĐẶT COOKIE (MỞ KHÓA TẦNG VIP) ---
+st.divider()
+with st.expander("⚙️ CÀI ĐẶT HỆ THỐNG (NHẬP COOKIE MỞ KHÓA 4K)"):
+    st.markdown("**Nhập chuỗi Cookie tài khoản Xiaohongshu của anh vào đây:**")
+    st.caption("Mẹo: Mở trình duyệt, vào Xiaohongshu.com nhấn F12 -> Network -> Copy giá trị Cookie của anh dán vào đây.")
+    
+    cookie_input = st.text_area("Cookie:", value=st.session_state.user_cookie, height=80, label_visibility="collapsed", placeholder="Ví dụ: web_session=xxxx; a1=yyyy; ...")
+    
+    if st.button("💾 LƯU COOKIE & ÁP DỤNG"):
+        st.session_state.user_cookie = cookie_input.strip()
+        st.success("✅ Đã ghi nhận Cookie! Hệ thống sẽ kích hoạt phương thức kiểm tra kép khi gom luồng.")
+
+# --- HÀM XỬ LÝ DỮ LIỆU CHÍNH ---
 def extract_url(text):
     pattern = r'https?://(?:www\.xiaohongshu\.com/(?:discovery/item/|explore/)|xhslink\.com/)[a-zA-Z0-9?=&_%/-]+'
     match = re.search(pattern, text)
@@ -153,8 +167,9 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             progress_bar.progress(100)
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
 
+    # PHƯƠNG THỨC KIỂM TRA KÉP (Dual-check mapping)
     q_map = {
-        "Origin": "bestvideo+bestaudio/best", # Bỏ bộ lọc cũ, thu toàn bộ luồng lớn nhất
+        "Origin": "bestvideo+bestaudio/best", 
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
         "720p": "bestvideo[height<=720]+bestaudio/best",
         "480p": "bestvideo[height<=480]+bestaudio/best"
@@ -167,16 +182,17 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         'no_warnings': True,
         'merge_output_format': 'mp4',
         'progress_hooks': [progress_hook],
-        
-        # [CẬP NHẬT MỚI 1] Ép thuật toán ưu tiên tối đa: Độ phân giải > Kích thước file > Bitrate
-        'format_sort': ['res', 'size', 'br', 'fps'], 
-        
-        # [CẬP NHẬT MỚI 2 - CƠ CHẾ COOKIE] 
-        # Nếu anh chạy code trên MÁY TÍNH CÁ NHÂN và đã đăng nhập web Xiaohongshu bằng Chrome,
-        # hãy xóa dấu thăng (#) ở đầu dòng bên dưới để kích hoạt lấy luồng 4K VIP:
-        # 'cookiesfrombrowser': ('chrome',), 
-        # Lưu ý: Thay 'chrome' thành 'edge' hoặc 'firefox' nếu anh dùng trình duyệt khác.
     }
+    
+    # KÍCH HOẠT COOKIE NẾU CÓ
+    if st.session_state.user_cookie:
+        ydl_opts['http_headers'] = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Cookie': st.session_state.user_cookie
+        }
+        # Nếu chọn Origin và có Cookie, ép bộ lọc lấy dung lượng/độ phân giải lớn nhất
+        if q_key == "Origin":
+            ydl_opts['format_sort'] = ['res', 'size', 'br', 'fps']
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -207,7 +223,11 @@ if target_link != st.session_state.current_link:
 if not target_link:
     st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
-    st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! Anh hãy chọn chất lượng để hệ thống bắt đầu kéo dữ liệu.</div>", unsafe_allow_html=True)
+    # Hiển thị thông báo phụ thuộc vào trạng thái Cookie
+    if st.session_state.user_cookie:
+        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Anh có thể gom luồng Origin cao nhất.</div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p hoặc 720p.</div>", unsafe_allow_html=True)
 
 st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn chất lượng để gom luồng:</b></p>", unsafe_allow_html=True)
 _, b1, b2, b3, b4, _ = st.columns([1, 2, 2, 2, 2, 1])
@@ -229,7 +249,10 @@ def process_and_download(quality):
             if not found_author:
                 try:
                     scrape_url = info.get('webpage_url') or target_link
-                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else ''
+                    }
                     resp = requests.get(scrape_url, headers=headers, timeout=10, allow_redirects=True)
                     if resp.status_code == 200:
                         match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
