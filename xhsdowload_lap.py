@@ -154,7 +154,7 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
 
     q_map = {
-        "Origin": "bestvideo[fps>30]+bestaudio/bestvideo+bestaudio/best", 
+        "Origin": "bestvideo+bestaudio/best", # Bỏ bộ lọc cũ, thu toàn bộ luồng lớn nhất
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
         "720p": "bestvideo[height<=720]+bestaudio/best",
         "480p": "bestvideo[height<=480]+bestaudio/best"
@@ -167,6 +167,15 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         'no_warnings': True,
         'merge_output_format': 'mp4',
         'progress_hooks': [progress_hook],
+        
+        # [CẬP NHẬT MỚI 1] Ép thuật toán ưu tiên tối đa: Độ phân giải > Kích thước file > Bitrate
+        'format_sort': ['res', 'size', 'br', 'fps'], 
+        
+        # [CẬP NHẬT MỚI 2 - CƠ CHẾ COOKIE] 
+        # Nếu anh chạy code trên MÁY TÍNH CÁ NHÂN và đã đăng nhập web Xiaohongshu bằng Chrome,
+        # hãy xóa dấu thăng (#) ở đầu dòng bên dưới để kích hoạt lấy luồng 4K VIP:
+        # 'cookiesfrombrowser': ('chrome',), 
+        # Lưu ý: Thay 'chrome' thành 'edge' hoặc 'firefox' nếu anh dùng trình duyệt khác.
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -271,14 +280,10 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     st.divider()
     
-    # XỬ LÝ ĐẶT TÊN FILE THEO YÊU CẦU: @TenTacGia_TieuDe
     raw_title = data.get('title', 'Tu_Lieu_XHS')
-    
-    # Loại bỏ các ký tự có thể gây lỗi hệ thống file ( \ / : * ? " < > | )
     safe_author = re.sub(r'[\\/*?:"<>|\n\r]', "", st.session_state.author_name).strip()
     safe_title = re.sub(r'[\\/*?:"<>|\n\r]', "", raw_title).strip()
     
-    # Đề phòng tiêu đề quá dài gây lỗi OS (giới hạn 60 ký tự)
     if len(safe_title) > 60:
         safe_title = safe_title[:60] + "..."
         
@@ -309,6 +314,9 @@ if st.session_state.video_data and st.session_state.video_file_path:
         st.write(f"**Độ phân giải:** {data.get('width', 'N/A')}x{data.get('height', 'N/A')} | **FPS:** {data.get('fps', 'N/A')}")
         
         if os.path.exists(file_path):
+            file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
+            st.write(f"**Dung lượng tải về:** {file_size_mb} MB")
+            
             with open(file_path, "rb") as video_file:
                 st.download_button(
                     label="📥 TẢI XUỐNG VIDEO",
