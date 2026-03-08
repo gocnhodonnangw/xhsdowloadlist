@@ -8,7 +8,7 @@ import requests
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
 
-# CSS Tùy chỉnh
+# CSS Tùy chỉnh: Đồng bộ nền đỏ, chữ trắng cho TẤT CẢ các nút
 st.markdown("""
     <style>
     .stApp {
@@ -21,15 +21,17 @@ st.markdown("""
         font-family: 'Inter', 'Segoe UI', sans-serif;
     }
     
+    /* Thiết kế nút chọn chất lượng (Đã đổi sang nền đỏ chữ trắng) */
     div.stButton > button {
-        background-color: #ffffff !important;
-        color: #ff2442 !important;
-        border: 2px solid #ff2442 !important;
+        background-color: #ff2442 !important;
+        color: #ffffff !important;
+        border: none !important;
         border-radius: 12px !important;
         width: 100% !important;
         height: 52px !important;
         font-size: 15px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important; 
+        letter-spacing: 0.5px !important; 
         transition: all 0.2s ease;
         box-shadow: 6px 6px 15px rgba(255, 36, 66, 0.3) !important;
     }
@@ -37,7 +39,7 @@ st.markdown("""
     div.stButton > button:hover {
         transform: translate(-2px, -2px);
         box-shadow: 8px 8px 20px rgba(255, 36, 66, 0.4) !important;
-        background-color: #fff5f6 !important;
+        background-color: #e61e3a !important;
     }
 
     div.stButton > button:active {
@@ -46,16 +48,19 @@ st.markdown("""
     }
 
     div.stButton > button:disabled {
-        opacity: 0.4;
-        border: 2px solid #dddddd !important;
-        color: #999999 !important;
+        opacity: 0.5;
+        background-color: #cccccc !important;
+        color: #ffffff !important;
         box-shadow: none !important;
     }
 
+    /* Thiết kế nút tải xuống */
     div.stDownloadButton > button {
         background-color: #ff2442 !important;
         color: #ffffff !important;
         border: none !important;
+        font-weight: 800 !important; 
+        letter-spacing: 0.5px !important;
         box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.5) !important;
     }
 
@@ -118,7 +123,6 @@ def extract_url(text):
     return match.group(0) if match else None
 
 def download_video_to_temp(url, q_key, progress_bar, status_text):
-    """Gom luồng và tải trực tiếp video về bộ nhớ tạm, kèm cập nhật UI"""
     temp_dir = tempfile.gettempdir()
     outtmpl = os.path.join(temp_dir, '%(id)s.%(ext)s')
     
@@ -126,7 +130,6 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         if d['status'] == 'downloading':
             percent_str = d.get('_percent_str', '0.0%')
             clean_percent = re.sub(r'\x1b\[[0-9;]*m', '', percent_str).replace('%', '').strip()
-            
             try:
                 percent = float(clean_percent)
                 progress_bar.progress(int(percent))
@@ -155,13 +158,10 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        
         expected_ext = 'mp4' if info.get('ext') != 'mp4' else info.get('ext', 'mp4')
         file_path = os.path.join(temp_dir, f"{info['id']}.{expected_ext}")
-        
         if not os.path.exists(file_path):
             file_path = ydl.prepare_filename(info)
-            
         return info, file_path
 
 # --- GIAO DIỆN TƯƠNG TÁC ---
@@ -196,13 +196,11 @@ def process_and_download(quality):
     with p_col:
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
         try:
             info, path = download_video_to_temp(target_link, quality, progress_bar, status_text)
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # Xử lý tải thumbnail ngầm để tránh lỗi 403
             thumb_url = info.get('thumbnail')
             if thumb_url:
                 try:
@@ -232,19 +230,17 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
-        # Hiển thị Thumbnail chuẩn xác từ bytes
         if st.session_state.thumbnail_bytes:
             st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước tư liệu", use_container_width=True)
-            # Thêm nút tải ảnh bìa
+            # Đã xóa (.JPG)
             st.download_button(
-                label="🖼️ TẢI ẢNH BÌA (.JPG)",
+                label="🖼️ TẢI ẢNH BÌA",
                 data=st.session_state.thumbnail_bytes,
                 file_name=f"Thumbnail_Lap_{data.get('id', 'xhs')}.jpg",
                 mime="image/jpeg",
                 use_container_width=True
             )
         else:
-            # Dự phòng nếu lấy ảnh thất bại
             if data.get('thumbnail'):
                 st.image(data.get('thumbnail'), caption="Ảnh xem trước tư liệu", use_container_width=True)
             else:
@@ -252,14 +248,18 @@ if st.session_state.video_data and st.session_state.video_file_path:
 
     with res_c2:
         st.subheader("📌 Chi tiết bản ghi")
-        st.write(f"**Tác giả:** {data.get('uploader', 'N/A')}")
+        
+        author_name = data.get('uploader') or data.get('creator') or data.get('channel') or data.get('user') or 'Chưa xác định'
+        
+        st.write(f"**Tác giả:** {author_name}")
         st.write(f"**Tiêu đề:** {data.get('title', 'N/A')}")
         st.write(f"**Độ phân giải:** {data.get('width', 'N/A')}x{data.get('height', 'N/A')} | **FPS:** {data.get('fps', 'N/A')}")
         
         if os.path.exists(file_path):
             with open(file_path, "rb") as video_file:
+                # Đã xóa (.MP4)
                 st.download_button(
-                    label="📥 TẢI XUỐNG VIDEO (.MP4)",
+                    label="📥 TẢI XUỐNG VIDEO",
                     data=video_file,
                     file_name=f"TuLieu_Lap_{data.get('id', 'video')}.mp4",
                     mime="video/mp4",
@@ -272,9 +272,10 @@ if st.session_state.video_data and st.session_state.video_file_path:
     description = data.get('description') or 'Không có mô tả chữ.'
     st.info(description)
     
-    meta_txt = f"TÁC GIẢ: {data.get('uploader')}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
+    meta_txt = f"TÁC GIẢ: {author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
+    # Đã xóa (.TXT)
     st.download_button(
-        label="💾 LƯU FILE VĂN BẢN (.TXT)", 
+        label="💾 LƯU FILE VĂN BẢN", 
         data=meta_txt, 
         file_name=f"TuLieu_Lap_{data.get('id', 'xhs')}.txt",
         use_container_width=True
