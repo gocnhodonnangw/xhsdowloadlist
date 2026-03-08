@@ -139,7 +139,6 @@ def settings_dialog():
         </div>
     """, unsafe_allow_html=True)
     
-    # Sử dụng text_input với type="password" tự động tích hợp nút bật/tắt hiển thị
     cookie_input = st.text_input(
         "Chuỗi Cookie:", 
         value=st.session_state.user_cookie, 
@@ -196,7 +195,6 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             progress_bar.progress(100)
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đã tải xong, đang đóng gói file...</p>", unsafe_allow_html=True)
 
-    # PHƯƠNG THỨC KIỂM TRA KÉP
     q_map = {
         "Origin": "bestvideo+bestaudio/best", 
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
@@ -211,9 +209,9 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         'no_warnings': True,
         'merge_output_format': 'mp4',
         'progress_hooks': [progress_hook],
+        'nocache': True  # BẮT BUỘC ÉP XÓA CACHE ĐỂ LẤY LINK MỚI NHẤT
     }
     
-    # KÍCH HOẠT COOKIE
     if st.session_state.user_cookie:
         ydl_opts['http_headers'] = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -264,6 +262,10 @@ def process_and_download(quality):
     with p_col:
         progress_bar = st.progress(0)
         status_text = st.empty()
+        
+        # Đặt lại bytes ảnh để tránh dính ảnh cũ bị lỗi
+        st.session_state.thumbnail_bytes = None 
+        
         try:
             info, path = download_video_to_temp(target_link, quality, progress_bar, status_text)
             st.session_state.video_data = info
@@ -288,22 +290,30 @@ def process_and_download(quality):
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
+            # CƠ CHẾ LỌC ẢNH MẠNH MẼ HƠN
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
-                try:
-                    best_thumb = max(thumbnails, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0))
-                    thumb_url = best_thumb.get('url')
-                except Exception:
-                    thumb_url = thumbnails[-1].get('url') 
+                valid_thumbs = [t for t in thumbnails if t.get('url')]
+                if valid_thumbs:
+                    try:
+                        best_thumb = max(valid_thumbs, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0))
+                        thumb_url = best_thumb.get('url')
+                    except Exception:
+                        thumb_url = valid_thumbs[-1].get('url') 
             
             if not thumb_url:
                 thumb_url = info.get('thumbnail') 
 
             if thumb_url:
                 try:
-                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-                    resp = requests.get(thumb_url, headers=headers, timeout=10)
+                    # THÊM GIẤY THÔNG HÀNH REFERER + COOKIE CHO ẢNH
+                    img_headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Referer': 'https://www.xiaohongshu.com/',
+                        'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else ''
+                    }
+                    resp = requests.get(thumb_url, headers=img_headers, timeout=15)
                     if resp.status_code == 200:
                         st.session_state.thumbnail_bytes = resp.content
                 except:
