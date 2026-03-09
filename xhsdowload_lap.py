@@ -125,10 +125,9 @@ if 'current_link' not in st.session_state: st.session_state.current_link = None
 if 'thumbnail_bytes' not in st.session_state: st.session_state.thumbnail_bytes = None
 if 'author_name' not in st.session_state: st.session_state.author_name = "Chưa xác định"
 if 'user_cookie' not in st.session_state: st.session_state.user_cookie = ""
-# Nhúng cứng Danh tính tiêu chuẩn, ẩn đi khỏi giao diện
 if 'user_agent' not in st.session_state: st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-# --- CỬA SỔ NỔI CÀI ĐẶT BẢO MẬT (Đã loại bỏ User-Agent) ---
+# --- CỬA SỔ NỔI CÀI ĐẶT BẢO MẬT ---
 @st.dialog("⚙️ CÀI ĐẶT BẢO MẬT TÀI KHOẢN")
 def settings_dialog():
     st.markdown("""
