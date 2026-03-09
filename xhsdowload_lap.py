@@ -11,6 +11,26 @@ import subprocess
 import shutil
 import streamlit.components.v1 as components
 
+# --- CƠ CHẾ TỰ ĐỘNG CÀI ĐẶT TRÌNH DUYỆT ẢO TRÊN CLOUD ---
+@st.cache_resource
+def install_playwright_browsers():
+    """Hàm này chỉ chạy 1 lần duy nhất khi app khởi động trên Cloud"""
+    try:
+        os.system("playwright install chromium")
+        os.system("playwright install-deps chromium")
+    except:
+        pass
+
+install_playwright_browsers()
+# --------------------------------------------------------
+
+# --- THỬ IMPORT PLAYWRIGHT (ENGINE MỚI) ---
+try:
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
 
@@ -27,94 +47,30 @@ st.markdown("""
         background-size: 50px 50px;
         background-color: #ffffff;
     }
-    h1, h2, h3, p, span, label, .stMarkdown {
-        color: #1a1a1a !important;
-        font-family: 'Inter', 'Segoe UI', sans-serif;
-    }
+    h1, h2, h3, p, span, label, .stMarkdown { color: #1a1a1a !important; font-family: 'Inter', 'Segoe UI', sans-serif; }
     
     div.stButton > button, div.stButton > button p, div.stButton > button span {
-        background-color: #ff2442 !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 12px !important;
-        font-size: 16px !important; 
-        font-weight: 900 !important;
-        letter-spacing: 0.5px !important; 
-        transition: all 0.2s ease;
+        background-color: #ff2442 !important; color: #ffffff !important; border: none !important;
+        border-radius: 12px !important; font-size: 16px !important; font-weight: 900 !important;
+        letter-spacing: 0.5px !important; transition: all 0.2s ease;
     }
-    
-    div.stButton > button {
-        width: 100% !important;
-        height: 52px !important;
-        box-shadow: 6px 6px 15px rgba(255, 36, 66, 0.3) !important;
-    }
-    
-    div.stButton > button:hover {
-        transform: translate(-2px, -2px);
-        box-shadow: 8px 8px 20px rgba(255, 36, 66, 0.4) !important;
-        background-color: #e61e3a !important;
-    }
-
-    div.stButton > button:active {
-        transform: translate(2px, 2px);
-        box-shadow: 2px 2px 5px rgba(255, 36, 66, 0.3) !important;
-    }
-
-    div.stButton > button:disabled, div.stButton > button:disabled p {
-        background-color: #cccccc !important;
-        color: #ffffff !important;
-        opacity: 0.8 !important;
-        box-shadow: none !important;
-    }
+    div.stButton > button { width: 100% !important; height: 52px !important; box-shadow: 6px 6px 15px rgba(255, 36, 66, 0.3) !important; }
+    div.stButton > button:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 20px rgba(255, 36, 66, 0.4) !important; background-color: #e61e3a !important; }
+    div.stButton > button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 5px rgba(255, 36, 66, 0.3) !important; }
+    div.stButton > button:disabled, div.stButton > button:disabled p { background-color: #cccccc !important; color: #ffffff !important; opacity: 0.8 !important; box-shadow: none !important; }
 
     div.stDownloadButton > button, div.stDownloadButton > button p, div.stDownloadButton > button span {
-        background-color: #ff2442 !important;
-        color: #ffffff !important;
-        border: none !important;
-        font-size: 16px !important;
-        font-weight: 900 !important;
-        letter-spacing: 0.5px !important;
+        background-color: #ff2442 !important; color: #ffffff !important; border: none !important;
+        font-size: 16px !important; font-weight: 900 !important; letter-spacing: 0.5px !important;
     }
-    
-    div.stDownloadButton > button {
-        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important;
-        width: 100% !important;
-    }
+    div.stDownloadButton > button { box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important; width: 100% !important; }
+    div.stDownloadButton > button:hover { background-color: #e61e3a !important; }
 
-    div.stDownloadButton > button:hover {
-        background-color: #e61e3a !important;
-    }
-
-    .stProgress > div > div > div > div {
-        background-color: #ff2442 !important;
-    }
-
-    .centered-text {
-        text-align: center;
-    }
-    
-    .status-msg {
-        text-align: center;
-        padding: 12px;
-        border-radius: 10px;
-        margin-bottom: 25px;
-        font-weight: 600;
-    }
-
-    img {
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    
-    .footer {
-        text-align: center;
-        padding: 40px;
-        color: #999 !important;
-        font-size: 14px;
-        border-top: 1px solid #f0f0f0;
-        margin-top: 60px;
-        background-color: rgba(255, 255, 255, 0.8);
-    }
+    .stProgress > div > div > div > div { background-color: #ff2442 !important; }
+    .centered-text { text-align: center; }
+    .status-msg { text-align: center; padding: 12px; border-radius: 10px; margin-bottom: 25px; font-weight: 600; }
+    img { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .footer { text-align: center; padding: 40px; color: #999 !important; font-size: 14px; border-top: 1px solid #f0f0f0; margin-top: 60px; background-color: rgba(255, 255, 255, 0.8); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -127,22 +83,19 @@ if 'author_name' not in st.session_state: st.session_state.author_name = "Chưa 
 if 'user_cookie' not in st.session_state: st.session_state.user_cookie = ""
 if 'user_agent' not in st.session_state: st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-# --- CỬA SỔ NỔI CÀI ĐẶT BẢO MẬT ---
+# --- CỬA SỔ CÀI ĐẶT BẢO MẬT ---
 @st.dialog("⚙️ CÀI ĐẶT BẢO MẬT TÀI KHOẢN")
 def settings_dialog():
     st.markdown("""
         <div style="background-color: #fdfdfd; padding: 18px; border-radius: 12px; border: 1px solid #eaeaea; margin-bottom: 20px;">
             <h4 style="color: #ff2442; margin-top: 0px; margin-bottom: 12px; font-weight: 800;">🔑 Mở khóa luồng VIP 4K</h4>
             <p style="color: #666; font-size: 14px; margin-bottom: 8px; line-height: 1.5;">
-                Để tải chất lượng gốc, hãy cung cấp <b>Cookie</b> từ trình duyệt của anh. Hệ thống sẽ tự động quét luồng ẩn và ghép nối âm thanh.
+                Hệ thống Dual-Engine cần Cookie để giả lập môi trường người dùng thật.
             </p>
         </div>
     """, unsafe_allow_html=True)
-    
-    st.markdown("**Chuỗi Cookie Xiaohongshu:**")
-    cookie_input = st.text_input("Chuỗi Cookie:", value=st.session_state.user_cookie, type="password", placeholder="Dán mã Cookie bắt đầu bằng web_session=...", label_visibility="collapsed")
+    cookie_input = st.text_input("Chuỗi Cookie:", value=st.session_state.user_cookie, type="password", placeholder="Dán mã Cookie web_session=...", label_visibility="collapsed")
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-    
     if st.button("💾 LƯU BẢO MẬT & ÁP DỤNG"):
         st.session_state.user_cookie = cookie_input.strip()
         st.success("✅ Đã lưu! Cửa sổ sẽ tự đóng...")
@@ -155,7 +108,7 @@ with header_col1:
     st.markdown("""
         <div style="text-align: left; margin-bottom: 20px; padding-top: 10px;">
             <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 900; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
-            <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>
+            <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu Dual-Engine của <b>Tác giả Lập</b></p>
         </div>
     """, unsafe_allow_html=True)
 with header_col2:
@@ -169,10 +122,8 @@ def nuke_cache():
     try:
         for filename in os.listdir(APP_TEMP_DIR):
             file_path = os.path.join(APP_TEMP_DIR, filename)
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
+            if os.path.isfile(file_path) or os.path.islink(file_path): os.unlink(file_path)
+            elif os.path.isdir(file_path): shutil.rmtree(file_path)
     except: pass
 
 def extract_url(text):
@@ -180,18 +131,66 @@ def extract_url(text):
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
-# --- TRÌNH ĐÁNH HƠI LUỒNG ẨN (AUTO-SNIFFER) ---
-def auto_sniff_m3u8(original_url, headers):
+# ==========================================
+# ĐỘNG CƠ MỚI: PLAYWRIGHT HEADLESS SNIFFER
+# ==========================================
+def playwright_sniff_stream(url, cookie_str, ua):
+    if not PLAYWRIGHT_AVAILABLE:
+        return None
+        
+    found_url = None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(user_agent=ua)
+            
+            if cookie_str:
+                cookies_list = []
+                for item in cookie_str.split(';'):
+                    if '=' in item:
+                        k, v = item.strip().split('=', 1)
+                        cookies_list.append({'name': k.strip(), 'value': v.strip(), 'domain': '.xiaohongshu.com', 'path': '/'})
+                if cookies_list:
+                    context.add_cookies(cookies_list)
+                    
+            page = context.new_page()
+            
+            def intercept_request(request):
+                nonlocal found_url
+                r_url = request.url
+                if '.m3u8' in r_url:
+                    found_url = r_url 
+                elif '.mp4' in r_url and 'sns-video' in r_url and not found_url:
+                    found_url = r_url 
+                    
+            page.on("request", intercept_request)
+            
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                page.wait_for_timeout(4000)
+            except:
+                pass
+            finally:
+                browser.close()
+    except Exception as e:
+        pass
+        
+    return found_url
+
+# ==========================================
+# ĐỘNG CƠ CŨ: REGEX SNIFFER (LỚP DỰ PHÒNG)
+# ==========================================
+def old_regex_sniff_m3u8(original_url, headers):
     try:
         resp = requests.get(original_url, headers=headers, timeout=10)
         matches = re.findall(r'(https?://[^\s"\'\\]+\.m3u8[^\s"\'\\]*)', resp.text)
         if matches:
-            clean_url = matches[0].replace('\\u002F', '/').replace('\\', '')
-            return clean_url
+            return matches[0].replace('\\u002F', '/').replace('\\', '')
     except: pass
     return None
 
-def download_video_to_temp(url, q_key, progress_bar, status_text):
+# --- LUỒNG XỬ LÝ CHÍNH ĐA TẦNG ---
+def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright=False):
     nuke_cache()
     temp_dir = APP_TEMP_DIR
     
@@ -199,24 +198,36 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
     if st.session_state.user_cookie:
         http_headers['Cookie'] = st.session_state.user_cookie
 
-    base_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'nocache': True,
-        'rm_cachedir': True,
-        'http_headers': http_headers
-    }
+    base_opts = {'quiet': True, 'no_warnings': True, 'nocache': True, 'rm_cachedir': True, 'http_headers': http_headers}
+
+    def progress_hook(d):
+        if d['status'] == 'downloading':
+            percent_str = d.get('_percent_str', '0.0%')
+            clean_percent = re.sub(r'\x1b\[[0-9;]*m', '', percent_str).replace('%', '').strip()
+            try:
+                progress_bar.progress(int(float(clean_percent)))
+                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo dữ liệu: {clean_percent}%</p>", unsafe_allow_html=True)
+            except ValueError: pass
 
     with yt_dlp.YoutubeDL(base_opts) as ydl:
         info = ydl.extract_info(url, download=False)
         vid_id = info.get('id', str(int(time.time())))
 
-    # THUẬT TOÁN 1: TRUY KÍCH ORIGIN 4K TỰ ĐỘNG
+    # TẦNG 1: ORIGIN 4K (Thử Playwright -> Thử Regex -> Tải & Ghép)
     if st.session_state.user_cookie and q_key == "Origin":
         try:
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🔎 Đang tự động dò tìm luồng phân mảnh gốc...</p>", unsafe_allow_html=True)
-            sniffed_url = auto_sniff_m3u8(url, http_headers)
-            target_download_url = sniffed_url if sniffed_url else url
+            target_download_url = None
+            
+            if use_playwright and PLAYWRIGHT_AVAILABLE:
+                status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🤖 Động cơ Playwright đang mở luồng ẩn, vui lòng đợi 4-5 giây...</p>", unsafe_allow_html=True)
+                target_download_url = playwright_sniff_stream(url, st.session_state.user_cookie, st.session_state.user_agent)
+            
+            if not target_download_url:
+                status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>🔎 Kích hoạt Engine Regex quét luồng dự phòng...</p>", unsafe_allow_html=True)
+                target_download_url = old_regex_sniff_m3u8(url, http_headers)
+                
+            if not target_download_url:
+                target_download_url = url
 
             vid_path = os.path.join(temp_dir, f"{vid_id}_video_only.mp4")
             aud_path = os.path.join(temp_dir, f"{vid_id}_audio_only.m4a")
@@ -244,32 +255,19 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             
             if process.returncode == 0 and os.path.exists(final_path):
                 progress_bar.progress(100)
-                status_text.markdown("<p style='text-align:center; color: #28a745; font-weight: 700;'>✅ Hoàn tất! Tư liệu 4K đã sẵn sàng.</p>", unsafe_allow_html=True)
+                status_text.markdown("<p style='text-align:center; color: #28a745; font-weight: 700;'>✅ Hoàn tất! Tư liệu 4K đã được hợp nhất.</p>", unsafe_allow_html=True)
                 return info, final_path
             else:
-                raise Exception("Lỗi ghép file hệ thống")
+                raise Exception("Lỗi ghép nối FFmpeg")
 
         except Exception as e:
-            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Không truy xuất được luồng VIP. Tự động tải luồng thay thế...</p>", unsafe_allow_html=True)
+            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Lỗi luồng VIP. Tự động lùi về luồng liền khối an toàn...</p>", unsafe_allow_html=True)
             time.sleep(1.5)
 
-    # THUẬT TOÁN 2: TẢI TIÊU CHUẨN
-    def progress_hook(d):
-        if d['status'] == 'downloading':
-            percent_str = d.get('_percent_str', '0.0%')
-            clean_percent = re.sub(r'\x1b\[[0-9;]*m', '', percent_str).replace('%', '').strip()
-            try:
-                progress_bar.progress(int(float(clean_percent)))
-                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo luồng tiêu chuẩn: {clean_percent}%</p>", unsafe_allow_html=True)
-            except ValueError: pass
-
+    # TẦNG 2: HẠ CÁNH AN TOÀN (TẢI TIÊU CHUẨN)
     standard_q_map = {
-        "Origin": "best", 
-        "1080p": "best[height<=1080]",
-        "720p": "best[height<=720]",
-        "480p": "best[height<=480]"
+        "Origin": "best", "1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"
     }
-    
     std_opts = base_opts.copy()
     std_opts['format'] = standard_q_map.get(q_key, 'best')
     std_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_std.%(ext)s')
@@ -283,10 +281,16 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
             file_path = ydl.prepare_filename(info_std)
         return info_std, file_path
 
-# --- KHU VỰC NHẬP LINK ---
+# --- KHU VỰC NHẬP LIỆU & LỰA CHỌN ENGINE ---
 _, mid_input, _ = st.columns([1, 3, 1])
 with mid_input:
     raw_input = st.text_area("Dán nội dung bài viết hoặc link XHS vào đây:", height=100)
+    
+    if PLAYWRIGHT_AVAILABLE:
+        use_playwright = st.checkbox("🔥 Bật Động cơ Playwright (Mở trình duyệt ảo túm luồng 4K)", value=False)
+    else:
+        st.warning("Cảnh báo: Đang chạy luồng Regex tĩnh. Hãy cấu hình packages.txt và requirements.txt để dùng luồng Playwright.")
+        use_playwright = False
 
 target_link = extract_url(raw_input)
 
@@ -302,7 +306,7 @@ if not target_link:
     st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
     if st.session_state.user_cookie:
-        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Tự động quét luồng Streaming.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Sẵn sàng đánh chặn luồng Origin.</div>", unsafe_allow_html=True)
     else:
         st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p.</div>", unsafe_allow_html=True)
 
@@ -319,17 +323,15 @@ def process_and_download(quality):
         st.session_state.thumbnail_bytes = None 
         
         try:
-            info, path = download_video_to_temp(target_link, quality, progress_bar, status_text)
+            info, path = download_video_to_temp(target_link, quality, progress_bar, status_text, use_playwright)
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # Quét tác giả
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             if not found_author:
                 try:
-                    scrape_url = info.get('webpage_url') or target_link
                     headers = {'User-Agent': st.session_state.user_agent, 'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else ''}
-                    resp = requests.get(scrape_url, headers=headers, timeout=10, allow_redirects=True)
+                    resp = requests.get(target_link, headers=headers, timeout=10, allow_redirects=True)
                     if resp.status_code == 200:
                         match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
                         if match: found_author = json.loads('"' + match.group(1) + '"')
@@ -337,14 +339,13 @@ def process_and_download(quality):
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            # Quét ảnh bìa bỏ qua cache
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
                 valid_thumbs = [t for t in thumbnails if t.get('url')]
                 if valid_thumbs:
                     try: best_thumb = max(valid_thumbs, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0)); thumb_url = best_thumb.get('url')
-                    except Exception: thumb_url = valid_thumbs[-1].get('url') 
+                    except: thumb_url = valid_thumbs[-1].get('url') 
             if not thumb_url: thumb_url = info.get('thumbnail') 
 
             if thumb_url:
@@ -418,22 +419,12 @@ if st.session_state.video_data and st.session_state.video_file_path:
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
     body {{ margin: 0; padding: 0; background-color: transparent; }}
     button {{
-        background-color: #ff2442 !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 8px !important;
-        width: 100% !important;
-        height: 48px !important; 
-        font-size: 16px !important;
-        font-weight: 900 !important;
-        letter-spacing: 0.5px !important;
-        font-family: 'Inter', 'Segoe UI', sans-serif !important;
-        cursor: pointer;
-        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important;
-        transition: all 0.2s ease !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        background-color: #ff2442 !important; color: #ffffff !important; border: none !important;
+        border-radius: 8px !important; width: 100% !important; height: 48px !important; 
+        font-size: 16px !important; font-weight: 900 !important; letter-spacing: 0.5px !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif !important; cursor: pointer;
+        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important; transition: all 0.2s ease !important;
+        display: flex; align-items: center; justify-content: center;
     }}
     button:hover {{ background-color: #e61e3a !important; }}
     button:active {{ transform: translate(2px, 2px) !important; box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3) !important; }}
