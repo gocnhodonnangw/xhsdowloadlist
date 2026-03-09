@@ -35,7 +35,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# --- CSS KHÔI PHỤC THEO ĐÚNG BẢN GỐC CỦA TÁC GIẢ LẬP ---
+# --- CSS ĐỒNG BỘ TOÀN DIỆN THEO CHUẨN NÚT "LƯU VĂN BẢN" ---
 st.markdown("""
     <style>
     /* Nền caro sọc đỏ */
@@ -46,38 +46,52 @@ st.markdown("""
     }
     h1, h2, h3, p, span, label, .stMarkdown { color: #1a1a1a !important; font-family: 'Inter', 'Segoe UI', sans-serif; }
     
-    /* Thiết kế nút bấm chuẩn: Thân đỏ, chữ trắng, font siêu dày */
-    div.stButton > button {
-        background-color: #ff2442 !important;
-        color: #ffffff !important;
+    /* Áp dụng chuẩn "Lưu văn bản" cho TẤT CẢ các nút */
+    div.stButton > button, div.stDownloadButton > button {
+        background-color: #ff2442 !important; 
+        color: #ffffff !important; 
         border: none !important;
-        border-radius: 12px !important;
-        width: 100% !important;
-        height: 52px !important;
-        font-size: 16px !important;
-        font-weight: 900 !important;
-        transition: all 0.2s ease;
-        box-shadow: 6px 6px 15px rgba(255, 36, 66, 0.3) !important;
+        border-radius: 8px !important; 
+        width: 100% !important; 
+        height: 48px !important; 
+        font-size: 16px !important; 
+        font-weight: 900 !important; 
+        letter-spacing: 0.5px !important;
+        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important; 
+        transition: all 0.2s ease !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif !important;
     }
-    div.stButton > button:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 20px rgba(255, 36, 66, 0.4) !important; background-color: #e61e3a !important; }
-    div.stButton > button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 5px rgba(255, 36, 66, 0.3) !important; }
-    div.stButton > button:disabled, div.stButton > button:disabled p { background-color: #cccccc !important; color: #ffffff !important; opacity: 0.8 !important; box-shadow: none !important; }
-
-    /* Nút Download hành động chính */
-    div.stDownloadButton > button {
-        background-color: #ff2442 !important;
-        color: #ffffff !important;
-        border: none !important;
+    
+    /* Ép thẻ <p> bên trong nút của Streamlit kế thừa màu chữ và độ dày */
+    div.stButton > button p, div.stDownloadButton > button p {
+        color: #ffffff !important; 
+        font-weight: 900 !important; 
         font-size: 16px !important;
-        font-weight: 900 !important;
-        border-radius: 12px !important;
-        box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important;
-        width: 100% !important;
+        margin: 0 !important;
     }
-    div.stDownloadButton > button:hover { background-color: #e61e3a !important; }
-
-    /* Nút download nhỏ cho lưới ảnh Gallery */
-    .gallery-download > div > div > button { height: 40px !important; font-size: 13px !important; margin-top: 10px !important; }
+    
+    /* Hiệu ứng di chuột (Hover) */
+    div.stButton > button:hover, div.stDownloadButton > button:hover { 
+        background-color: #e61e3a !important; 
+    }
+    
+    /* Hiệu ứng nhấp chuột (Active) */
+    div.stButton > button:active, div.stDownloadButton > button:active { 
+        transform: translate(2px, 2px) !important; 
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3) !important; 
+    }
+    
+    /* Trạng thái vô hiệu hóa (Disabled) */
+    div.stButton > button:disabled, div.stDownloadButton > button:disabled, 
+    div.stButton > button:disabled p, div.stDownloadButton > button:disabled p,
+    div.stButton > button:disabled:hover, div.stDownloadButton > button:disabled:hover { 
+        background-color: #cccccc !important; 
+        color: #ffffff !important; 
+        opacity: 0.8 !important; 
+        box-shadow: none !important; 
+        transform: none !important;
+        cursor: not-allowed !important;
+    }
 
     .stProgress > div > div > div > div { background-color: #ff2442 !important; }
     .centered-text { text-align: center; }
@@ -103,12 +117,12 @@ if 'user_cookie' not in st.session_state: st.session_state.user_cookie = ""
 if 'user_agent' not in st.session_state: st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # --- CỬA SỔ CÀI ĐẶT BẢO MẬT ---
-@st.dialog("⚙️ CÀI ĐẶT BẢO MẬT TÀI KHOẢN")
+@st.dialog("⚙️ CÀI ĐẶT BẢO MẬT")
 def settings_dialog():
     st.markdown("<p style='color: #666; font-size: 14px;'>Nhập Cookie để quét luồng VIP 4K.</p>", unsafe_allow_html=True)
     cookie_input = st.text_input("Chuỗi Cookie:", value=st.session_state.user_cookie, type="password", placeholder="web_session=...", label_visibility="collapsed")
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-    if st.button("💾 LƯU BẢO MẬT & ÁP DỤNG"):
+    if st.button("LƯU BẢO MẬT"):
         st.session_state.user_cookie = cookie_input.strip()
         st.success("✅ Đã lưu! Cửa sổ sẽ tự đóng...")
         time.sleep(1)
@@ -143,12 +157,12 @@ def extract_url(text):
     return match.group(0) if match else None
 
 # ==========================================
-# LUỒNG LOGIC: QUÉT BỘ SƯU TẬP ẢNH
+# LUỒNG LOGIC: QUÉT BỘ SƯU TẬP ẢNH RAW
 # ==========================================
 def extract_gallery_images(url, headers):
-    """Bộ quét độc lập chỉ dùng cho nút BỘ SƯU TẬP ẢNH"""
     try:
-        resp = requests.get(url, headers=headers, timeout=15)
+        anti_cache_url = f"{url}&_t={int(time.time())}" if "?" in url else f"{url}?_t={int(time.time())}"
+        resp = requests.get(anti_cache_url, headers=headers, timeout=15)
         html_text = resp.text
         
         urls = re.findall(r'"urlDefault":"(https?://[^"]+)"', html_text)
@@ -157,7 +171,7 @@ def extract_gallery_images(url, headers):
         clean_urls = []
         for u in urls:
             u = u.replace('\\u002F', '/')
-            clean_u = u.split('?')[0] if '?' in u else u
+            clean_u = u.split('?')[0] if '?' in u else u # Xóa tham số nén ảnh
             if clean_u not in clean_urls: clean_urls.append(clean_u)
         return clean_urls
     except: return []
@@ -212,7 +226,6 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
         info = ydl.extract_info(url, download=False)
         vid_id = info.get('id', str(int(time.time())))
 
-    # TẦNG 1: ORIGIN 4K
     if st.session_state.user_cookie and q_key == "Origin":
         try:
             target_download_url = None
@@ -240,13 +253,11 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
             else: raise Exception("Lỗi ghép nối")
         except: pass
 
-    # TẦNG 2: TIÊU CHUẨN
     standard_q_map = {"Origin": "best", "1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"}
     std_opts = base_opts.copy()
     std_opts['format'] = standard_q_map.get(q_key, 'best'); std_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_std.%(ext)s'); std_opts['progress_hooks'] = [progress_hook]
     with yt_dlp.YoutubeDL(std_opts) as ydl:
-        ydl.cache.remove()
-        info_std = ydl.extract_info(url, download=True)
+        ydl.cache.remove(); info_std = ydl.extract_info(url, download=True)
         file_path = os.path.join(temp_dir, f"{info_std['id']}_std.{info_std.get('ext', 'mp4')}")
         if not os.path.exists(file_path): file_path = ydl.prepare_filename(info_std)
         return info_std, file_path
@@ -260,7 +271,6 @@ with mid_input:
 
 target_link = extract_url(raw_input)
 
-# Xóa rác khi link mới
 if target_link != st.session_state.current_link:
     st.session_state.video_data = None
     st.session_state.video_file_path = None
@@ -282,7 +292,7 @@ def reset_ui_state():
     st.session_state.image_gallery = None
 
 # ==========================================
-# KHÔI PHỤC BỐ CỤC 4 NÚT CHUẨN (Dành cho Video)
+# BỐ CỤC 4 NÚT CHUẨN (Dành cho Video)
 # ==========================================
 st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn chất lượng để gom luồng:</b></p>", unsafe_allow_html=True)
 _, b1, b2, b3, b4, _ = st.columns([1, 2, 2, 2, 2, 1])
@@ -295,10 +305,12 @@ if b2.button("BẢN 1080P", disabled=is_disabled): selected_video_quality = "108
 if b3.button("BẢN 720P", disabled=is_disabled): selected_video_quality = "720p"
 if b4.button("BẢN 480P", disabled=is_disabled): selected_video_quality = "480p"
 
-# NÚT GALLERY TÁCH RIÊNG (Không chèn ép 4 nút trên)
+# ==========================================
+# NÚT GALLERY TÁCH RIÊNG XUỐNG DƯỚI
+# ==========================================
 _, b_gal, _ = st.columns([1, 4, 1])
 st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
-click_gallery = b_gal.button("🖼️ TẢI BỘ SƯU TẬP ẢNH (GALLERY DÀNH CHO BÀI VIẾT ẢNH)", disabled=is_disabled)
+click_gallery = b_gal.button("🖼️ BỘ SƯU TẬP ẢNH (DÀNH CHO BÀI VIẾT ẢNH)", disabled=is_disabled)
 
 # XỬ LÝ KHI BẤM NÚT VIDEO
 if selected_video_quality:
@@ -312,10 +324,11 @@ if selected_video_quality:
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # KHÔI PHỤC LOGIC LẤY ẢNH CHUẨN YT-DLP (MƯỢT, KHÔNG VỠ HẠT)
+            # LOGIC LẤY ẢNH PREVIEW CŨ CỦA YT-DLP (MƯỢT, KHÔNG VỠ HẠT)
             found_author = info.get('uploader') or info.get('creator') or info.get('user')
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             st.session_state.post_title = info.get('title', 'TuLieu')
+            st.session_state.post_desc = info.get('description', '')
             
             thumb_url = None
             thumbnails = info.get('thumbnails', [])
@@ -328,7 +341,6 @@ if selected_video_quality:
 
             if thumb_url:
                 try:
-                    # Ép tải ảnh chuẩn, không cache
                     anti_cache_img = f"{thumb_url}&_t={int(time.time())}" if "?" in thumb_url else f"{thumb_url}?_t={int(time.time())}"
                     resp = requests.get(anti_cache_img, headers={'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/'}, timeout=10)
                     if resp.status_code == 200: st.session_state.thumbnail_bytes = resp.content
@@ -346,8 +358,6 @@ if click_gallery:
         status_text.markdown("<p class='status-msg' style='color: #ff2442;'>🔎 Đang quét kho ảnh RAW...</p>", unsafe_allow_html=True)
         
         http_headers = {'User-Agent': st.session_state.user_agent, 'Cookie': st.session_state.user_cookie}
-        
-        # Lấy metadata dự phòng bằng ytdlp
         with yt_dlp.YoutubeDL({'quiet': True, 'http_headers': http_headers}) as ydl:
             try: info = ydl.extract_info(target_link, download=False)
             except: info = {}
@@ -355,11 +365,10 @@ if click_gallery:
         found_author = info.get('uploader') or info.get('creator') or info.get('user')
         st.session_state.author_name = found_author if found_author else "Chưa xác định"
         st.session_state.post_title = info.get('title', 'TuLieu')
+        st.session_state.post_desc = info.get('description', '')
 
-        # Quét Gallery HTML
         img_urls = extract_gallery_images(target_link, http_headers)
         
-        # Nếu hụt HTML, fallback qua yt-dlp thumbnails (lấy mẻ ảnh to nhất)
         if not img_urls:
             thumbnails = info.get('thumbnails', [])
             if thumbnails:
@@ -380,20 +389,17 @@ if click_gallery:
         else:
             status_text.empty(); st.warning("⚠️ Không tìm thấy ảnh. Có thể đây là bài chỉ chứa Video.")
 
-# --- HIỂN THỊ KẾT QUẢ GIAO DIỆN (CHUẨN CŨ) ---
+# --- HIỂN THỊ KẾT QUẢ ---
 safe_author = re.sub(r'[\\/*?:"<>|\n\r]', "", st.session_state.author_name).strip()
 safe_title = re.sub(r'[\\/*?:"<>|\n\r]', "", st.session_state.post_title).strip()
 if len(safe_title) > 60: safe_title = safe_title[:60] + "..."
 export_filename = f"@{safe_author}_{safe_title}"
 
-# ================================
-# 1. GIAO DIỆN KẾT QUẢ VIDEO
-# ================================
+# 1. KẾT QUẢ CHẾ ĐỘ VIDEO
 if st.session_state.video_data and st.session_state.video_file_path:
     st.divider()
     res_c1, res_c2 = st.columns([1, 1.4])
     
-    # Cột Trái: Ảnh Preview & Nút tải Ảnh Bìa
     with res_c1:
         if st.session_state.thumbnail_bytes:
             st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước chất lượng cao", use_container_width=True)
@@ -401,9 +407,8 @@ if st.session_state.video_data and st.session_state.video_file_path:
         else: 
             st.info("Không có ảnh xem trước")
 
-    # Cột Phải: Metadata & Nút tải Video
     with res_c2:
-        st.markdown("<h3 style='margin-top:0;'>📌 Chi tiết bản ghi</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0;'>📌 Chi tiết bản ghi Video</h3>", unsafe_allow_html=True)
         st.write(f"**Tác giả:** {st.session_state.author_name}")
         st.write(f"**Tiêu đề:** {st.session_state.post_title}")
         
@@ -414,14 +419,13 @@ if st.session_state.video_data and st.session_state.video_file_path:
         file_path = st.session_state.video_file_path
         if os.path.exists(file_path):
             file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
+            st.write(f"**Dung lượng tải về:** {file_size_mb} MB")
             st.markdown(f"<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             with open(file_path, "rb") as video_file:
                 st.download_button(label="📥 TẢI XUỐNG VIDEO", data=video_file, file_name=f"{export_filename}.mp4", mime="video/mp4", use_container_width=True)
         else: st.error("Lỗi mất file tạm.")
 
-# ================================
-# 2. GIAO DIỆN KẾT QUẢ GALLERY
-# ================================
+# 2. KẾT QUẢ CHẾ ĐỘ ẢNH (GALLERY)
 if st.session_state.image_gallery:
     st.divider()
     st.markdown(f"<h3>📸 Trích xuất {len(st.session_state.image_gallery)} Ảnh chất lượng cao</h3>", unsafe_allow_html=True)
@@ -440,17 +444,12 @@ if st.session_state.image_gallery:
     for idx, img in enumerate(images):
         with cols[idx % 4]:
             st.image(img['bytes'], use_container_width=True)
-            st.markdown("<div class='gallery-download'>", unsafe_allow_html=True)
             st.download_button(label=f"Tải {img['name']}", data=img['bytes'], file_name=f"{export_filename}_{img['name']}", mime="image/jpeg", key=f"dl_btn_{idx}")
-            st.markdown("</div>", unsafe_allow_html=True)
 
-# ================================
 # 3. MÔ TẢ & LƯU VĂN BẢN CHUNG
-# ================================
 if st.session_state.video_data or st.session_state.image_gallery:
     st.markdown("### 📝 Nội dung mô tả bài viết")
-    data = st.session_state.video_data or {}
-    desc_text = data.get('description') or 'Không có mô tả chữ.'
+    desc_text = st.session_state.post_desc or 'Không có mô tả chữ.'
     safe_desc = html.escape(desc_text)
     st.markdown(f"""
         <div style="background-color: #f8f9fa; border-left: 4px solid #ff2442; padding: 15px; border-radius: 8px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; color: #333; margin-bottom: 20px;">
@@ -466,8 +465,8 @@ if st.session_state.video_data or st.session_state.image_gallery:
     body {{ margin: 0; padding: 0; background-color: transparent; }}
     button {{
         background-color: #ff2442 !important; color: #ffffff !important; border: none !important;
-        border-radius: 12px !important; width: 100% !important; height: 48px !important; 
-        font-size: 15px !important; font-weight: 900 !important; letter-spacing: 0.5px !important;
+        border-radius: 8px !important; width: 100% !important; height: 48px !important; 
+        font-size: 16px !important; font-weight: 900 !important; letter-spacing: 0.5px !important;
         font-family: 'Inter', 'Segoe UI', sans-serif !important; cursor: pointer;
         box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important; transition: all 0.2s ease !important;
     }}
