@@ -512,7 +512,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
         if st.session_state.thumbnail_bytes:
-            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước (Ép mới 100%)", use_container_width=True)
+            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước", use_container_width=True)
             st.download_button(label="🖼️ TẢI ẢNH BÌA", data=st.session_state.thumbnail_bytes, file_name=f"{export_filename}.jpg", mime="image/jpeg", use_container_width=True)
         else:
             fallback_url = data.get('thumbnail')
