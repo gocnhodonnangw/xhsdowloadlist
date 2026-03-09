@@ -22,17 +22,15 @@ def install_playwright_browsers():
 install_playwright_browsers()
 # --------------------------------------------------------
 
-# --- THỬ IMPORT PLAYWRIGHT (ENGINE MỚI) ---
 try:
     from playwright.sync_api import sync_playwright
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
-# --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
+# --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
 
-# --- KHỞI TẠO VÙNG CÁCH LY CHỐNG CACHE ---
 APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
@@ -117,6 +115,7 @@ with header_col2:
 st.divider()
 
 def nuke_cache():
+    """Hàm hủy diệt file tạm - Xóa sạch không thương tiếc"""
     try:
         for filename in os.listdir(APP_TEMP_DIR):
             file_path = os.path.join(APP_TEMP_DIR, filename)
@@ -166,24 +165,18 @@ def playwright_sniff_stream(url, cookie_str, ua):
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 page.wait_for_timeout(4000)
-            except:
-                pass
+            except: pass
             finally:
                 browser.close()
-    except Exception as e:
-        pass
+    except Exception as e: pass
         
     return found_url
 
-# ==========================================
-# ĐỘNG CƠ CŨ: REGEX SNIFFER (LỚP DỰ PHÒNG)
-# ==========================================
 def old_regex_sniff_m3u8(original_url, headers):
     try:
         resp = requests.get(original_url, headers=headers, timeout=10)
         matches = re.findall(r'(https?://[^\s"\'\\]+\.m3u8[^\s"\'\\]*)', resp.text)
-        if matches:
-            return matches[0].replace('\\u002F', '/').replace('\\', '')
+        if matches: return matches[0].replace('\\u002F', '/').replace('\\', '')
     except: pass
     return None
 
@@ -208,14 +201,14 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
             except ValueError: pass
 
     with yt_dlp.YoutubeDL(base_opts) as ydl:
+        ydl.cache.remove()
         info = ydl.extract_info(url, download=False)
         vid_id = info.get('id', str(int(time.time())))
 
-    # TẦNG 1: ORIGIN 4K (Thử Playwright -> Thử Regex -> Tải & Ghép)
+    # TẦNG 1: ORIGIN 4K
     if st.session_state.user_cookie and q_key == "Origin":
         try:
             target_download_url = None
-            
             if use_playwright and PLAYWRIGHT_AVAILABLE:
                 status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🤖 Động cơ Playwright đang mở luồng ẩn, vui lòng đợi 4-5 giây...</p>", unsafe_allow_html=True)
                 target_download_url = playwright_sniff_stream(url, st.session_state.user_cookie, st.session_state.user_agent)
@@ -235,16 +228,14 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
             v_opts = base_opts.copy()
             v_opts['format'] = 'bestvideo'
             v_opts['outtmpl'] = vid_path
-            with yt_dlp.YoutubeDL(v_opts) as ydl:
-                ydl.download([target_download_url])
+            with yt_dlp.YoutubeDL(v_opts) as ydl: ydl.download([target_download_url])
             progress_bar.progress(40)
 
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 2/3: Đang kéo lõi Âm Thanh...</p>", unsafe_allow_html=True)
             a_opts = base_opts.copy()
             a_opts['format'] = 'bestaudio'
             a_opts['outtmpl'] = aud_path
-            with yt_dlp.YoutubeDL(a_opts) as ydl:
-                ydl.download([target_download_url])
+            with yt_dlp.YoutubeDL(a_opts) as ydl: ydl.download([target_download_url])
             progress_bar.progress(80)
 
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 3/3: Đang tự động hàn ghép âm thanh & hình ảnh...</p>", unsafe_allow_html=True)
@@ -262,16 +253,15 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
             status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Lỗi luồng VIP. Tự động lùi về luồng liền khối an toàn...</p>", unsafe_allow_html=True)
             time.sleep(1.5)
 
-    # TẦNG 2: HẠ CÁNH AN TOÀN (TẢI TIÊU CHUẨN)
-    standard_q_map = {
-        "Origin": "best", "1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"
-    }
+    # TẦNG 2: HẠ CÁNH AN TOÀN
+    standard_q_map = {"Origin": "best", "1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"}
     std_opts = base_opts.copy()
     std_opts['format'] = standard_q_map.get(q_key, 'best')
     std_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_std.%(ext)s')
     std_opts['progress_hooks'] = [progress_hook]
 
     with yt_dlp.YoutubeDL(std_opts) as ydl:
+        ydl.cache.remove()
         info_std = ydl.extract_info(url, download=True)
         expected_ext = 'mp4' if info_std.get('ext') != 'mp4' else info_std.get('ext', 'mp4')
         file_path = os.path.join(temp_dir, f"{info_std['id']}_std.{expected_ext}")
@@ -292,6 +282,7 @@ with mid_input:
 
 target_link = extract_url(raw_input)
 
+# Xóa State nếu dán link MỚI
 if target_link != st.session_state.current_link:
     st.session_state.video_data = None
     st.session_state.video_file_path = None
@@ -314,44 +305,79 @@ _, b1, b2, b3, b4, _ = st.columns([1, 2, 2, 2, 2, 1])
 is_disabled = False if target_link else True
 
 def process_and_download(quality):
+    # ========================================================
+    # XÓA TRẮNG DỮ LIỆU CŨ TRÊN UI NGAY LẬP TỨC KHI BẤM NÚT
+    # Đảm bảo không bao giờ bị ám ảnh bởi hình mờ của lần trước
+    # ========================================================
+    st.session_state.thumbnail_bytes = None 
+    st.session_state.video_data = None
+    st.session_state.video_file_path = None
+    
     _, p_col, _ = st.columns([1, 4, 1])
     with p_col:
         progress_bar = st.progress(0)
         status_text = st.empty()
-        st.session_state.thumbnail_bytes = None 
         
         try:
             info, path = download_video_to_temp(target_link, quality, progress_bar, status_text, use_playwright)
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
+            # --- QUÉT ẢNH TƯƠI TỪ LÕI HTML (CHỐNG CACHE TUYỆT ĐỐI) ---
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
-            if not found_author:
-                try:
-                    headers = {'User-Agent': st.session_state.user_agent, 'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else ''}
-                    resp = requests.get(target_link, headers=headers, timeout=10, allow_redirects=True)
-                    if resp.status_code == 200:
+            fresh_thumb_url = None
+            
+            try:
+                scrape_url = info.get('webpage_url') or target_link
+                # Thêm bùa chú chống Cache
+                headers = {
+                    'User-Agent': st.session_state.user_agent, 
+                    'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else '',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+                
+                # Nối timestamp để lừa hệ thống luôn tải mới HTML
+                anti_cache_scrape_url = f"{scrape_url}&_t={int(time.time())}" if "?" in scrape_url else f"{scrape_url}?_t={int(time.time())}"
+                resp = requests.get(anti_cache_scrape_url, headers=headers, timeout=10, allow_redirects=True)
+                
+                if resp.status_code == 200:
+                    if not found_author:
                         match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
                         if match: found_author = json.loads('"' + match.group(1) + '"')
-                except: pass
+                    
+                    # Bóc trực tiếp thẻ meta chứa ảnh nét nhất của XHS
+                    img_match = re.search(r'<meta name="og:image" content="([^"]+)"', resp.text)
+                    if img_match:
+                        fresh_thumb_url = img_match.group(1).replace('\\u002F', '/')
+            except: pass
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            thumbnails = info.get('thumbnails', [])
-            thumb_url = None
-            if thumbnails:
-                valid_thumbs = [t for t in thumbnails if t.get('url')]
-                if valid_thumbs:
-                    try: best_thumb = max(valid_thumbs, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0)); thumb_url = best_thumb.get('url')
-                    except: thumb_url = valid_thumbs[-1].get('url') 
-            if not thumb_url: thumb_url = info.get('thumbnail') 
+            # Ưu tiên tuyệt đối ảnh tươi bóc bằng HTML
+            thumb_url = fresh_thumb_url
+            if not thumb_url:
+                thumbnails = info.get('thumbnails', [])
+                if thumbnails:
+                    valid_thumbs = [t for t in thumbnails if t.get('url')]
+                    if valid_thumbs:
+                        try: best_thumb = max(valid_thumbs, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0)); thumb_url = best_thumb.get('url')
+                        except: thumb_url = valid_thumbs[-1].get('url') 
+                if not thumb_url: thumb_url = info.get('thumbnail') 
 
+            # Tải File Ảnh với lệnh ép không dùng Cache
             if thumb_url:
                 try:
-                    anti_cache_url = f"{thumb_url}&_t={int(time.time())}" if "?" in thumb_url else f"{thumb_url}?_t={int(time.time())}"
-                    img_headers = {'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/', 'Cache-Control': 'no-cache'}
-                    resp = requests.get(anti_cache_url, headers=img_headers, timeout=15)
-                    if resp.status_code == 200: st.session_state.thumbnail_bytes = resp.content
+                    anti_cache_img_url = f"{thumb_url}&_t={int(time.time())}" if "?" in thumb_url else f"{thumb_url}?_t={int(time.time())}"
+                    img_headers = {
+                        'User-Agent': st.session_state.user_agent, 
+                        'Referer': 'https://www.xiaohongshu.com/', 
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                    resp = requests.get(anti_cache_img_url, headers=img_headers, timeout=15)
+                    if resp.status_code == 200: 
+                        st.session_state.thumbnail_bytes = resp.content
                 except: pass
             
             progress_bar.empty()
@@ -379,12 +405,18 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
+        # Nếu bắt được ảnh Bytes (Tươi 100%)
         if st.session_state.thumbnail_bytes:
-            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước chất lượng cao", use_container_width=True)
+            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước (Ép mới 100%)", use_container_width=True)
             st.download_button(label="🖼️ TẢI ẢNH BÌA", data=st.session_state.thumbnail_bytes, file_name=f"{export_filename}.jpg", mime="image/jpeg", use_container_width=True)
         else:
-            if data.get('thumbnail'): st.image(data.get('thumbnail'), caption="Ảnh xem trước tư liệu", use_container_width=True)
-            else: st.info("Không có ảnh xem trước")
+            # Fallback nếu mọi thứ thất bại (Ép trình duyệt không cache URL)
+            fallback_url = data.get('thumbnail')
+            if fallback_url: 
+                anti_cache_fallback = f"{fallback_url}&_t={int(time.time())}" if "?" in fallback_url else f"{fallback_url}?_t={int(time.time())}"
+                st.image(anti_cache_fallback, caption="Ảnh xem trước tư liệu", use_container_width=True)
+            else: 
+                st.info("Không có ảnh xem trước")
 
     with res_c2:
         st.subheader("📌 Chi tiết bản ghi")
