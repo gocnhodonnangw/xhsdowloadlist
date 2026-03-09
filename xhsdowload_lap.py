@@ -37,7 +37,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh
+# CSS Tùy chỉnh (GIỮ NGUYÊN VẸN FONT CHỮ VÀ GIAO DIỆN)
 st.markdown("""
     <style>
     .stApp {
@@ -131,13 +131,13 @@ def extract_url(text):
     return match.group(0) if match else None
 
 # ==========================================
-# ĐỘNG CƠ MỚI: PLAYWRIGHT HEADLESS SNIFFER
+# ĐỘNG CƠ MỚI: DEEP SNIFFER (PLAYWRIGHT)
 # ==========================================
-def playwright_sniff_stream(url, cookie_str, ua):
+def playwright_deep_sniff(url, cookie_str, ua):
     if not PLAYWRIGHT_AVAILABLE:
-        return None
+        return None, None
         
-    found_url = None
+    found_data = {"url": None, "headers": {}}
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -155,12 +155,10 @@ def playwright_sniff_stream(url, cookie_str, ua):
             page = context.new_page()
             
             def intercept_request(request):
-                nonlocal found_url
                 r_url = request.url
-                if '.m3u8' in r_url:
-                    found_url = r_url 
-                elif '.mp4' in r_url and 'sns-video' in r_url and not found_url:
-                    found_url = r_url 
+                if ('.m3u8' in r_url or ('.mp4' in r_url and 'sns-video' in r_url)) and not found_data["url"]:
+                    found_data["url"] = r_url
+                    found_data["headers"] = request.headers
                     
             page.on("request", intercept_request)
             
@@ -170,9 +168,9 @@ def playwright_sniff_stream(url, cookie_str, ua):
             except: pass
             finally:
                 browser.close()
-    except Exception as e: pass
+    except Exception: pass
         
-    return found_url
+    return found_data["url"], found_data["headers"]
 
 def old_regex_sniff_m3u8(original_url, headers):
     try:
@@ -183,7 +181,7 @@ def old_regex_sniff_m3u8(original_url, headers):
     return None
 
 # ==========================================
-# ĐỘNG CƠ MỚI: QUÉT BỘ SƯU TẬP ẢNH (SLIDE)
+# ĐỘNG CƠ TẢI ẢNH: QUÉT BỘ SƯU TẬP (SLIDE)
 # ==========================================
 def extract_xhs_image_collection(url, cookie_str, ua):
     """Bóc tách toàn bộ mảng ảnh nguyên gốc từ bài đăng XHS dạng Slide"""
@@ -231,16 +229,29 @@ def extract_xhs_image_collection(url, cookie_str, ua):
     except Exception as e:
         return []
 
-# --- LUỒNG XỬ LÝ CHÍNH ĐA TẦNG (VIDEO) ---
+# --- LUỒNG XỬ LÝ CHÍNH ĐA TẦNG (VIDEO) THÊM CỜ FFMPEG RECONNECT ---
 def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright=False):
     nuke_cache()
     temp_dir = APP_TEMP_DIR
     
-    http_headers = {'User-Agent': st.session_state.user_agent}
+    http_headers = {'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/'}
     if st.session_state.user_cookie:
         http_headers['Cookie'] = st.session_state.user_cookie
 
-    base_opts = {'quiet': True, 'no_warnings': True, 'nocache': True, 'rm_cachedir': True, 'http_headers': http_headers}
+    ffmpeg_args = [
+        '-reconnect', '1', 
+        '-reconnect_streamed', '1', 
+        '-reconnect_delay_max', '5'
+    ]
+
+    base_opts = {
+        'quiet': True, 
+        'no_warnings': True, 
+        'nocache': True, 
+        'rm_cachedir': True, 
+        'http_headers': http_headers,
+        'external_downloader_args': {'ffmpeg': ffmpeg_args}
+    }
 
     def progress_hook(d):
         if d['status'] == 'downloading':
@@ -260,9 +271,10 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
     if st.session_state.user_cookie and q_key == "Origin":
         try:
             target_download_url = None
+            sniffed_headers = {}
             if use_playwright and PLAYWRIGHT_AVAILABLE:
                 status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🤖 Động cơ Playwright đang mở luồng ẩn, vui lòng đợi 4-5 giây...</p>", unsafe_allow_html=True)
-                target_download_url = playwright_sniff_stream(url, st.session_state.user_cookie, st.session_state.user_agent)
+                target_download_url, sniffed_headers = playwright_deep_sniff(url, st.session_state.user_cookie, st.session_state.user_agent)
             
             if not target_download_url:
                 status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>🔎 Kích hoạt Engine Regex quét luồng dự phòng...</p>", unsafe_allow_html=True)
@@ -277,6 +289,8 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
 
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 1/3: Đang kéo lõi Hình Ảnh 4K...</p>", unsafe_allow_html=True)
             v_opts = base_opts.copy()
+            if sniffed_headers:
+                v_opts['http_headers'].update(sniffed_headers)
             v_opts['format'] = 'bestvideo'
             v_opts['outtmpl'] = vid_path
             with yt_dlp.YoutubeDL(v_opts) as ydl: ydl.download([target_download_url])
@@ -284,6 +298,8 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
 
             status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 2/3: Đang kéo lõi Âm Thanh...</p>", unsafe_allow_html=True)
             a_opts = base_opts.copy()
+            if sniffed_headers:
+                a_opts['http_headers'].update(sniffed_headers)
             a_opts['format'] = 'bestaudio'
             a_opts['outtmpl'] = aud_path
             with yt_dlp.YoutubeDL(a_opts) as ydl: ydl.download([target_download_url])
