@@ -14,11 +14,8 @@ import streamlit.components.v1 as components
 # --- CƠ CHẾ TỰ ĐỘNG CÀI ĐẶT TRÌNH DUYỆT ẢO TRÊN CLOUD ---
 @st.cache_resource
 def install_playwright_browsers():
-    """Hàm này chỉ chạy 1 lần duy nhất khi app khởi động trên Cloud"""
     try:
-        # Chỉ tải nhân Chromium về thư mục ảo của user
         os.system("playwright install chromium")
-        # ĐÃ XÓA DÒNG install-deps GÂY LỖI SUDO
     except:
         pass
 
