@@ -407,7 +407,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
     with res_c1:
         # Nếu bắt được ảnh Bytes (Tươi 100%)
         if st.session_state.thumbnail_bytes:
-            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước (Ép mới 100%)", use_container_width=True)
+            st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước", use_container_width=True)
             st.download_button(label="🖼️ TẢI ẢNH BÌA", data=st.session_state.thumbnail_bytes, file_name=f"{export_filename}.jpg", mime="image/jpeg", use_container_width=True)
         else:
             # Fallback nếu mọi thứ thất bại (Ép trình duyệt không cache URL)
