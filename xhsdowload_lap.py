@@ -9,6 +9,8 @@ import html
 import time
 import subprocess
 import shutil
+import zipfile
+import io
 import streamlit.components.v1 as components
 
 # --- CƠ CHẾ TỰ ĐỘNG CÀI ĐẶT TRÌNH DUYỆT ẢO TRÊN CLOUD ---
@@ -180,7 +182,56 @@ def old_regex_sniff_m3u8(original_url, headers):
     except: pass
     return None
 
-# --- LUỒNG XỬ LÝ CHÍNH ĐA TẦNG ---
+# ==========================================
+# ĐỘNG CƠ MỚI: QUÉT BỘ SƯU TẬP ẢNH (SLIDE)
+# ==========================================
+def extract_xhs_image_collection(url, cookie_str, ua):
+    """Bóc tách toàn bộ mảng ảnh nguyên gốc từ bài đăng XHS dạng Slide"""
+    headers = {
+        'User-Agent': ua,
+        'Cookie': cookie_str if cookie_str else '',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+    }
+    
+    try:
+        anti_cache_url = f"{url}&_t={int(time.time())}" if "?" in url else f"{url}?_t={int(time.time())}"
+        resp = requests.get(anti_cache_url, headers=headers, timeout=15)
+        resp.encoding = 'utf-8'
+        
+        image_urls = []
+        author_name = "Chưa xác định"
+        
+        # Thử lấy tên tác giả từ HTML để đặt tên file ZIP cho chuẩn
+        match_author = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
+        if match_author: 
+            author_name = json.loads('"' + match_author.group(1) + '"')
+            st.session_state.author_name = author_name
+
+        # Bóc tách từ cây JSON __INITIAL_STATE__ (Chuẩn xác nhất)
+        match = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.*?\})\s*</script>', resp.text)
+        if match:
+            try:
+                data = json.loads(match.group(1).replace('undefined', 'null'))
+                note_id = list(data.get('note', {}).get('noteDetailMap', {}).keys())[0] if data.get('note', {}).get('noteDetailMap') else None
+                if note_id:
+                    images = data['note']['noteDetailMap'][note_id]['note'].get('imageList', [])
+                    for img in images:
+                        trace_id = img.get('traceId')
+                        if trace_id:
+                            image_urls.append(f"https://sns-img-hw.xhscdn.com/{trace_id}")
+            except Exception:
+                pass
+                
+        # Fallback bằng Regex nếu JSON bị đổi cấu trúc
+        if not image_urls:
+            raw_urls = re.findall(r'"(https://sns-img-[^"]+)"', resp.text)
+            image_urls = list(dict.fromkeys([u.replace('\\u002F', '/') for u in raw_urls if 'avatar' not in u]))
+            
+        return image_urls
+    except Exception as e:
+        return []
+
+# --- LUỒNG XỬ LÝ CHÍNH ĐA TẦNG (VIDEO) ---
 def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright=False):
     nuke_cache()
     temp_dir = APP_TEMP_DIR
@@ -299,15 +350,16 @@ else:
     else:
         st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p.</div>", unsafe_allow_html=True)
 
-st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn chất lượng để gom luồng:</b></p>", unsafe_allow_html=True)
-_, b1, b2, b3, b4, _ = st.columns([1, 2, 2, 2, 2, 1])
+st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn phương thức gom luồng:</b></p>", unsafe_allow_html=True)
+
+# Bố cục nút bấm mới có chứa nút Tải Ảnh
+_, b1, b2, b3, b4, b5, _ = st.columns([0.2, 1.5, 1.5, 1.5, 1.5, 2.5, 0.2])
 
 is_disabled = False if target_link else True
 
 def process_and_download(quality):
     # ========================================================
     # XÓA TRẮNG DỮ LIỆU CŨ TRÊN UI NGAY LẬP TỨC KHI BẤM NÚT
-    # Đảm bảo không bao giờ bị ám ảnh bởi hình mờ của lần trước
     # ========================================================
     st.session_state.thumbnail_bytes = None 
     st.session_state.video_data = None
@@ -390,7 +442,61 @@ if b2.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
 if b3.button("BẢN 720P", disabled=is_disabled): process_and_download("720p")
 if b4.button("BẢN 480P", disabled=is_disabled): process_and_download("480p")
 
-# --- HIỂN THỊ KẾT QUẢ ---
+# --- NÚT BẤM MỚI: TẢI BỘ SƯU TẬP ẢNH ---
+if b5.button("🖼️ TẢI TRỌN BỘ ẢNH", disabled=is_disabled):
+    # Dọn dẹp giao diện cũ
+    st.session_state.thumbnail_bytes = None 
+    st.session_state.video_data = None
+    st.session_state.video_file_path = None
+    nuke_cache()
+    
+    _, p_col, _ = st.columns([1, 4, 1])
+    with p_col:
+        status_text = st.empty()
+        status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🔎 Đang quét lõi HTML để tìm toàn bộ ảnh sắc nét...</p>", unsafe_allow_html=True)
+        
+        img_links = extract_xhs_image_collection(target_link, st.session_state.user_cookie, st.session_state.user_agent)
+        
+        if not img_links:
+            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Không tìm thấy mảng ảnh nào! Có thể đây là bài Video thuần hoặc lỗi kết nối.</p>", unsafe_allow_html=True)
+        else:
+            status_text.markdown(f"<p style='text-align:center; color: #28a745; font-weight: 700;'>✅ Đã tìm thấy {len(img_links)} ảnh chất lượng cao. Đang đóng gói...</p>", unsafe_allow_html=True)
+            
+            # Khởi tạo file ZIP trong RAM
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+                for idx, img_url in enumerate(img_links):
+                    try:
+                        img_resp = requests.get(img_url, headers={'User-Agent': st.session_state.user_agent}, timeout=10)
+                        if img_resp.status_code == 200:
+                            zip_file.writestr(f"Slide_{idx+1}.jpg", img_resp.content)
+                    except:
+                        pass
+            
+            # Hiển thị bộ sưu tập lên giao diện
+            st.divider()
+            st.markdown(f"### 📸 Đã bóc tách thành công {len(img_links)} ảnh")
+            
+            cols = st.columns(3)
+            for i, img_url in enumerate(img_links):
+                with cols[i % 3]:
+                    st.image(img_url, use_container_width=True, caption=f"Ảnh {i+1}")
+            
+            safe_author = re.sub(r'[\\/*?:"<>|\n\r]', "", st.session_state.author_name).strip()
+            zip_filename = f"@{safe_author}_XHS_Collection_{int(time.time())}.zip"
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.download_button(
+                label="📦 BẤM VÀO ĐÂY ĐỂ TẢI TRỌN BỘ SƯU TẬP (FILE ZIP)",
+                data=zip_buffer.getvalue(),
+                file_name=zip_filename,
+                mime="application/zip",
+                use_container_width=True
+            )
+            
+            status_text.empty()
+
+# --- HIỂN THỊ KẾT QUẢ CHO LUỒNG VIDEO ---
 if st.session_state.video_data and st.session_state.video_file_path:
     data = st.session_state.video_data
     file_path = st.session_state.video_file_path
@@ -405,12 +511,10 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
-        # Nếu bắt được ảnh Bytes (Tươi 100%)
         if st.session_state.thumbnail_bytes:
             st.image(st.session_state.thumbnail_bytes, caption="Ảnh xem trước (Ép mới 100%)", use_container_width=True)
             st.download_button(label="🖼️ TẢI ẢNH BÌA", data=st.session_state.thumbnail_bytes, file_name=f"{export_filename}.jpg", mime="image/jpeg", use_container_width=True)
         else:
-            # Fallback nếu mọi thứ thất bại (Ép trình duyệt không cache URL)
             fallback_url = data.get('thumbnail')
             if fallback_url: 
                 anti_cache_fallback = f"{fallback_url}&_t={int(time.time())}" if "?" in fallback_url else f"{fallback_url}?_t={int(time.time())}"
