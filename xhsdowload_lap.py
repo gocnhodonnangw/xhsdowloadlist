@@ -37,11 +37,9 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh (Đã fix lỗi font chữ)
+# CSS Tùy chỉnh
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
-    
     .stApp {
         background-image: linear-gradient(0deg, transparent 24%, rgba(255, 36, 66, .05) 25%, rgba(255, 36, 66, .05) 26%, transparent 27%, transparent 74%, rgba(255, 36, 66, .05) 75%, rgba(255, 36, 66, .05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 36, 66, .05) 25%, rgba(255, 36, 66, .05) 26%, transparent 27%, transparent 74%, rgba(255, 36, 66, .05) 75%, rgba(255, 36, 66, .05) 76%, transparent 77%, transparent);
         background-size: 50px 50px;
@@ -203,11 +201,13 @@ def extract_xhs_image_collection(url, cookie_str, ua):
         image_urls = []
         author_name = "Chưa xác định"
         
+        # Thử lấy tên tác giả từ HTML để đặt tên file ZIP cho chuẩn
         match_author = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
         if match_author: 
             author_name = json.loads('"' + match_author.group(1) + '"')
             st.session_state.author_name = author_name
 
+        # Bóc tách từ cây JSON __INITIAL_STATE__ (Chuẩn xác nhất)
         match = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.*?\})\s*</script>', resp.text)
         if match:
             try:
@@ -222,6 +222,7 @@ def extract_xhs_image_collection(url, cookie_str, ua):
             except Exception:
                 pass
                 
+        # Fallback bằng Regex nếu JSON bị đổi cấu trúc
         if not image_urls:
             raw_urls = re.findall(r'"(https://sns-img-[^"]+)"', resp.text)
             image_urls = list(dict.fromkeys([u.replace('\\u002F', '/') for u in raw_urls if 'avatar' not in u]))
@@ -357,7 +358,9 @@ _, b1, b2, b3, b4, b5, _ = st.columns([0.2, 1.5, 1.5, 1.5, 1.5, 2.5, 0.2])
 is_disabled = False if target_link else True
 
 def process_and_download(quality):
-    # XÓA TRẮNG DỮ LIỆU CŨ TRÊN UI ĐỂ CHỐNG LƯU CACHE ẢNH PREVIEW CŨ
+    # ========================================================
+    # XÓA TRẮNG DỮ LIỆU CŨ TRÊN UI NGAY LẬP TỨC KHI BẤM NÚT
+    # ========================================================
     st.session_state.thumbnail_bytes = None 
     st.session_state.video_data = None
     st.session_state.video_file_path = None
@@ -372,33 +375,57 @@ def process_and_download(quality):
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # --- LOGIC CŨ CHO ẢNH PREVIEW (YTLP) DỰ PHÒNG CHỐNG LỖI ---
+            # --- QUÉT ẢNH TƯƠI TỪ LÕI HTML (CHỐNG CACHE TUYỆT ĐỐI) ---
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
+            fresh_thumb_url = None
+            
+            try:
+                scrape_url = info.get('webpage_url') or target_link
+                # Thêm bùa chú chống Cache
+                headers = {
+                    'User-Agent': st.session_state.user_agent, 
+                    'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else '',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+                
+                # Nối timestamp để lừa hệ thống luôn tải mới HTML
+                anti_cache_scrape_url = f"{scrape_url}&_t={int(time.time())}" if "?" in scrape_url else f"{scrape_url}?_t={int(time.time())}"
+                resp = requests.get(anti_cache_scrape_url, headers=headers, timeout=10, allow_redirects=True)
+                
+                if resp.status_code == 200:
+                    if not found_author:
+                        match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
+                        if match: found_author = json.loads('"' + match.group(1) + '"')
+                    
+                    # Bóc trực tiếp thẻ meta chứa ảnh nét nhất của XHS
+                    img_match = re.search(r'<meta name="og:image" content="([^"]+)"', resp.text)
+                    if img_match:
+                        fresh_thumb_url = img_match.group(1).replace('\\u002F', '/')
+            except: pass
+            
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            thumb_url = None
-            thumbnails = info.get('thumbnails', [])
-            if thumbnails:
-                valid_thumbs = [t for t in thumbnails if t.get('url')]
-                if valid_thumbs:
-                    try: 
-                        best_thumb = max(valid_thumbs, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0))
-                        thumb_url = best_thumb.get('url')
-                    except: 
-                        thumb_url = valid_thumbs[-1].get('url') 
-            if not thumb_url: 
-                thumb_url = info.get('thumbnail') 
+            # Ưu tiên tuyệt đối ảnh tươi bóc bằng HTML
+            thumb_url = fresh_thumb_url
+            if not thumb_url:
+                thumbnails = info.get('thumbnails', [])
+                if thumbnails:
+                    valid_thumbs = [t for t in thumbnails if t.get('url')]
+                    if valid_thumbs:
+                        try: best_thumb = max(valid_thumbs, key=lambda x: (x.get('width') or 0) * (x.get('height') or 0)); thumb_url = best_thumb.get('url')
+                        except: thumb_url = valid_thumbs[-1].get('url') 
+                if not thumb_url: thumb_url = info.get('thumbnail') 
 
-            # LUÔN TẢI LẠI ẢNH MỚI - ÉP KHÔNG DÙNG CACHE
+            # Tải File Ảnh với lệnh ép không dùng Cache
             if thumb_url:
                 try:
                     anti_cache_img_url = f"{thumb_url}&_t={int(time.time())}" if "?" in thumb_url else f"{thumb_url}?_t={int(time.time())}"
                     img_headers = {
                         'User-Agent': st.session_state.user_agent, 
                         'Referer': 'https://www.xiaohongshu.com/', 
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache',
-                        'Expires': '0'
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
                     }
                     resp = requests.get(anti_cache_img_url, headers=img_headers, timeout=15)
                     if resp.status_code == 200: 
@@ -523,6 +550,7 @@ if st.session_state.video_data and st.session_state.video_file_path:
     safe_txt = json.dumps(meta_txt) 
     copy_html = f"""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
     body {{ margin: 0; padding: 0; background-color: transparent; }}
     button {{
         background-color: #ff2442 !important; color: #ffffff !important; border: none !important;
