@@ -8,10 +8,16 @@ import json
 import html
 import time
 import subprocess
+import shutil
 import streamlit.components.v1 as components
 
 # --- CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
+
+# --- KHỞI TẠO VÙNG CÁCH LY CHỐNG CACHE ---
+APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
+if not os.path.exists(APP_TEMP_DIR):
+    os.makedirs(APP_TEMP_DIR)
 
 # CSS Tùy chỉnh
 st.markdown("""
@@ -112,50 +118,35 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- QUẢN LÝ TRẠNG THÁI (SESSION STATE) ---
-if 'video_data' not in st.session_state:
-    st.session_state.video_data = None
-if 'video_file_path' not in st.session_state:
-    st.session_state.video_file_path = None
-if 'current_link' not in st.session_state:
-    st.session_state.current_link = None
-if 'thumbnail_bytes' not in st.session_state:
-    st.session_state.thumbnail_bytes = None
-if 'author_name' not in st.session_state:
-    st.session_state.author_name = "Chưa xác định"
-if 'user_cookie' not in st.session_state:
-    st.session_state.user_cookie = ""
-if 'user_agent' not in st.session_state:
-    st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-if 'is_split_mode' not in st.session_state:
-    st.session_state.is_split_mode = False
+# --- QUẢN LÝ TRẠNG THÁI ---
+if 'video_data' not in st.session_state: st.session_state.video_data = None
+if 'video_file_path' not in st.session_state: st.session_state.video_file_path = None
+if 'current_link' not in st.session_state: st.session_state.current_link = None
+if 'thumbnail_bytes' not in st.session_state: st.session_state.thumbnail_bytes = None
+if 'author_name' not in st.session_state: st.session_state.author_name = "Chưa xác định"
+if 'user_cookie' not in st.session_state: st.session_state.user_cookie = ""
+# Nhúng cứng Danh tính tiêu chuẩn, ẩn đi khỏi giao diện
+if 'user_agent' not in st.session_state: st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-# --- CỬA SỔ NỔI (DIALOG) CÀI ĐẶT BẢO MẬT ---
+# --- CỬA SỔ NỔI CÀI ĐẶT BẢO MẬT (Đã loại bỏ User-Agent) ---
 @st.dialog("⚙️ CÀI ĐẶT BẢO MẬT TÀI KHOẢN")
 def settings_dialog():
     st.markdown("""
         <div style="background-color: #fdfdfd; padding: 18px; border-radius: 12px; border: 1px solid #eaeaea; margin-bottom: 20px;">
             <h4 style="color: #ff2442; margin-top: 0px; margin-bottom: 12px; font-weight: 800;">🔑 Mở khóa luồng VIP 4K</h4>
             <p style="color: #666; font-size: 14px; margin-bottom: 8px; line-height: 1.5;">
-                Để tải chất lượng gốc, hệ thống cần quyền truy cập hợp lệ. Hãy cung cấp <b>Cookie</b> và <b>User-Agent</b> từ trình duyệt của anh.
+                Để tải chất lượng gốc, hãy cung cấp <b>Cookie</b> từ trình duyệt của anh. Hệ thống sẽ tự động quét luồng ẩn và ghép nối âm thanh.
             </p>
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("**1. Chuỗi Cookie Xiaohongshu:**")
+    st.markdown("**Chuỗi Cookie Xiaohongshu:**")
     cookie_input = st.text_input("Chuỗi Cookie:", value=st.session_state.user_cookie, type="password", placeholder="Dán mã Cookie bắt đầu bằng web_session=...", label_visibility="collapsed")
-    
-    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-    
-    st.markdown("**2. Danh tính trình duyệt (User-Agent):**")
-    ua_input = st.text_input("User-Agent:", value=st.session_state.user_agent, placeholder="Mozilla/5.0...", label_visibility="collapsed")
-    
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     
     if st.button("💾 LƯU BẢO MẬT & ÁP DỤNG"):
         st.session_state.user_cookie = cookie_input.strip()
-        st.session_state.user_agent = ua_input.strip() if ua_input.strip() else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        st.success("✅ Đã lưu cấu hình danh tính! Cửa sổ sẽ tự đóng...")
+        st.success("✅ Đã lưu! Cửa sổ sẽ tự đóng...")
         time.sleep(1)
         st.rerun()
 
@@ -175,14 +166,35 @@ with header_col2:
 
 st.divider()
 
-# --- HÀM XỬ LÝ DỮ LIỆU ---
+def nuke_cache():
+    try:
+        for filename in os.listdir(APP_TEMP_DIR):
+            file_path = os.path.join(APP_TEMP_DIR, filename)
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+    except: pass
+
 def extract_url(text):
-    pattern = r'https?://(?:www\.xiaohongshu\.com/(?:discovery/item/|explore/)|xhslink\.com/)[a-zA-Z0-9?=&_%/-]+'
+    pattern = r'(?:https?://(?:www\.xiaohongshu\.com/(?:discovery/item/|explore/)|xhslink\.com/)[a-zA-Z0-9?=&_%/-]+|https?://[^\s]+\.m3u8[^\s]*)'
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
+# --- TRÌNH ĐÁNH HƠI LUỒNG ẨN (AUTO-SNIFFER) ---
+def auto_sniff_m3u8(original_url, headers):
+    try:
+        resp = requests.get(original_url, headers=headers, timeout=10)
+        matches = re.findall(r'(https?://[^\s"\'\\]+\.m3u8[^\s"\'\\]*)', resp.text)
+        if matches:
+            clean_url = matches[0].replace('\\u002F', '/').replace('\\', '')
+            return clean_url
+    except: pass
+    return None
+
 def download_video_to_temp(url, q_key, progress_bar, status_text):
-    temp_dir = tempfile.gettempdir()
+    nuke_cache()
+    temp_dir = APP_TEMP_DIR
     
     http_headers = {'User-Agent': st.session_state.user_agent}
     if st.session_state.user_cookie:
@@ -192,40 +204,66 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         'quiet': True,
         'no_warnings': True,
         'nocache': True,
+        'rm_cachedir': True,
         'http_headers': http_headers
     }
 
+    with yt_dlp.YoutubeDL(base_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        vid_id = info.get('id', str(int(time.time())))
+
+    # THUẬT TOÁN 1: TRUY KÍCH ORIGIN 4K TỰ ĐỘNG
+    if st.session_state.user_cookie and q_key == "Origin":
+        try:
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🔎 Đang tự động dò tìm luồng phân mảnh gốc...</p>", unsafe_allow_html=True)
+            sniffed_url = auto_sniff_m3u8(url, http_headers)
+            target_download_url = sniffed_url if sniffed_url else url
+
+            vid_path = os.path.join(temp_dir, f"{vid_id}_video_only.mp4")
+            aud_path = os.path.join(temp_dir, f"{vid_id}_audio_only.m4a")
+            final_path = os.path.join(temp_dir, f"{vid_id}_final_4k.mp4")
+
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 1/3: Đang kéo lõi Hình Ảnh 4K...</p>", unsafe_allow_html=True)
+            v_opts = base_opts.copy()
+            v_opts['format'] = 'bestvideo'
+            v_opts['outtmpl'] = vid_path
+            with yt_dlp.YoutubeDL(v_opts) as ydl:
+                ydl.download([target_download_url])
+            progress_bar.progress(40)
+
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 2/3: Đang kéo lõi Âm Thanh...</p>", unsafe_allow_html=True)
+            a_opts = base_opts.copy()
+            a_opts['format'] = 'bestaudio'
+            a_opts['outtmpl'] = aud_path
+            with yt_dlp.YoutubeDL(a_opts) as ydl:
+                ydl.download([target_download_url])
+            progress_bar.progress(80)
+
+            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 3/3: Đang tự động hàn ghép âm thanh & hình ảnh...</p>", unsafe_allow_html=True)
+            command = ['ffmpeg', '-y', '-i', vid_path, '-i', aud_path, '-c:v', 'copy', '-c:a', 'aac', final_path]
+            process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            if process.returncode == 0 and os.path.exists(final_path):
+                progress_bar.progress(100)
+                status_text.markdown("<p style='text-align:center; color: #28a745; font-weight: 700;'>✅ Hoàn tất! Tư liệu 4K đã sẵn sàng.</p>", unsafe_allow_html=True)
+                return info, final_path
+            else:
+                raise Exception("Lỗi ghép file hệ thống")
+
+        except Exception as e:
+            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Không truy xuất được luồng VIP. Tự động tải luồng thay thế...</p>", unsafe_allow_html=True)
+            time.sleep(1.5)
+
+    # THUẬT TOÁN 2: TẢI TIÊU CHUẨN
     def progress_hook(d):
         if d['status'] == 'downloading':
             percent_str = d.get('_percent_str', '0.0%')
             clean_percent = re.sub(r'\x1b\[[0-9;]*m', '', percent_str).replace('%', '').strip()
             try:
                 progress_bar.progress(int(float(clean_percent)))
-                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo luồng: {clean_percent}%</p>", unsafe_allow_html=True)
+                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo luồng tiêu chuẩn: {clean_percent}%</p>", unsafe_allow_html=True)
             except ValueError: pass
 
-    # THUẬT TOÁN 1: KÉO CHỈ HÌNH ẢNH 4K (Split Mode)
-    if st.session_state.user_cookie and q_key == "Origin":
-        try:
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🚀 Đang truy kích lõi Hình Ảnh 4K (Không âm thanh)...</p>", unsafe_allow_html=True)
-            v_opts = base_opts.copy()
-            v_opts['format'] = 'bestvideo' # CHỈ LẤY VIDEO
-            v_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_video_only.%(ext)s')
-            v_opts['progress_hooks'] = [progress_hook]
-            
-            with yt_dlp.YoutubeDL(v_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                expected_ext = 'mp4' if info.get('ext') != 'mp4' else info.get('ext', 'mp4')
-                file_path = os.path.join(temp_dir, f"{info['id']}_video_only.{expected_ext}")
-                if not os.path.exists(file_path):
-                    file_path = ydl.prepare_filename(info)
-                return info, file_path, True # Trả về cờ True (Đang ở chế độ chia cắt)
-
-        except Exception as e:
-            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Không lấy được lõi 4K. Chuyển sang tải luồng liền khối...</p>", unsafe_allow_html=True)
-            time.sleep(1.5)
-
-    # THUẬT TOÁN 2: TẢI HẠ CÁNH (Liền khối)
     standard_q_map = {
         "Origin": "best", 
         "1080p": "best[height<=1080]",
@@ -244,66 +282,30 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         file_path = os.path.join(temp_dir, f"{info_std['id']}_std.{expected_ext}")
         if not os.path.exists(file_path):
             file_path = ydl.prepare_filename(info_std)
-        return info_std, file_path, False # Trả về cờ False
-
-# --- HÀM THỰC THI GHÉP NỐI (FFMPEG) ---
-def merge_audio_to_video(url, vid_path, info):
-    temp_dir = tempfile.gettempdir()
-    vid_id = info.get('id', 'temp')
-    aud_path = os.path.join(temp_dir, f"{vid_id}_audio_only.m4a")
-    final_path = os.path.join(temp_dir, f"{vid_id}_final_4k.mp4")
-    
-    http_headers = {'User-Agent': st.session_state.user_agent}
-    if st.session_state.user_cookie:
-        http_headers['Cookie'] = st.session_state.user_cookie
-        
-    a_opts = {
-        'format': 'bestaudio',
-        'outtmpl': aud_path,
-        'quiet': True,
-        'nocache': True,
-        'http_headers': http_headers
-    }
-    
-    try:
-        # Tải âm thanh
-        with yt_dlp.YoutubeDL(a_opts) as ydl:
-            ydl.download([url])
-            
-        # Gọi FFmpeg ghép nối
-        command = ['ffmpeg', '-y', '-i', vid_path, '-i', aud_path, '-c:v', 'copy', '-c:a', 'aac', final_path]
-        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        if process.returncode == 0 and os.path.exists(final_path):
-            return final_path
-        else:
-            return None
-    except Exception as e:
-        return None
+        return info_std, file_path
 
 # --- KHU VỰC NHẬP LINK ---
 _, mid_input, _ = st.columns([1, 3, 1])
 with mid_input:
-    raw_input = st.text_area("Dán nội dung bài viết hoặc link vào đây:", height=100, placeholder="Anh chỉ cần dán, tôi sẽ làm phần còn lại...")
+    raw_input = st.text_area("Dán nội dung bài viết hoặc link XHS vào đây:", height=100)
 
 target_link = extract_url(raw_input)
 
-# Làm mới State nếu link thay đổi
 if target_link != st.session_state.current_link:
     st.session_state.video_data = None
     st.session_state.video_file_path = None
     st.session_state.thumbnail_bytes = None
     st.session_state.author_name = "Chưa xác định"
-    st.session_state.is_split_mode = False
     st.session_state.current_link = target_link
+    nuke_cache() 
 
 if not target_link:
     st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
     if st.session_state.user_cookie:
-        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Sẵn sàng truy xuất lõi 4K.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Tự động quét luồng Streaming.</div>", unsafe_allow_html=True)
     else:
-        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p hoặc 720p.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p.</div>", unsafe_allow_html=True)
 
 st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn chất lượng để gom luồng:</b></p>", unsafe_allow_html=True)
 _, b1, b2, b3, b4, _ = st.columns([1, 2, 2, 2, 2, 1])
@@ -318,12 +320,11 @@ def process_and_download(quality):
         st.session_state.thumbnail_bytes = None 
         
         try:
-            info, path, is_split = download_video_to_temp(target_link, quality, progress_bar, status_text)
+            info, path = download_video_to_temp(target_link, quality, progress_bar, status_text)
             st.session_state.video_data = info
             st.session_state.video_file_path = path
-            st.session_state.is_split_mode = is_split
             
-            # Quét sâu tác giả & Lọc ảnh bìa
+            # Quét tác giả
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             if not found_author:
                 try:
@@ -332,13 +333,12 @@ def process_and_download(quality):
                     resp = requests.get(scrape_url, headers=headers, timeout=10, allow_redirects=True)
                     if resp.status_code == 200:
                         match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
-                        if match:
-                            raw_name = match.group(1)
-                            found_author = json.loads('"' + raw_name + '"')
-                except Exception: pass
+                        if match: found_author = json.loads('"' + match.group(1) + '"')
+                except: pass
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
+            # Quét ảnh bìa bỏ qua cache
             thumbnails = info.get('thumbnails', [])
             thumb_url = None
             if thumbnails:
@@ -350,8 +350,9 @@ def process_and_download(quality):
 
             if thumb_url:
                 try:
-                    img_headers = {'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/', 'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else ''}
-                    resp = requests.get(thumb_url, headers=img_headers, timeout=15)
+                    anti_cache_url = f"{thumb_url}&_t={int(time.time())}" if "?" in thumb_url else f"{thumb_url}?_t={int(time.time())}"
+                    img_headers = {'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/', 'Cache-Control': 'no-cache'}
+                    resp = requests.get(anti_cache_url, headers=img_headers, timeout=15)
                     if resp.status_code == 200: st.session_state.thumbnail_bytes = resp.content
                 except: pass
             
@@ -397,41 +398,8 @@ if st.session_state.video_data and st.session_state.video_file_path:
             file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
             st.write(f"**Dung lượng tải về:** {file_size_mb} MB")
             
-            # XỬ LÝ GIAO DIỆN TẢI XUỐNG DỰA TRÊN CHẾ ĐỘ (CÓ ÂM THANH HAY KHÔNG)
-            if st.session_state.is_split_mode:
-                st.warning("⚠️ LƯU Ý: Đây là bản 4K lõi Hình Ảnh (chưa có âm thanh). Anh có thể tải về ngay, hoặc yêu cầu hệ thống tải thêm luồng âm thanh và ghép lại.")
-                
-                # Chia 2 nút: Tải Video câm & Nút Ghép Âm Thanh
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    with open(file_path, "rb") as video_file:
-                        st.download_button(
-                            label="📥 TẢI BẢN HÌNH (CÂM)",
-                            data=video_file,
-                            file_name=f"{export_filename}_NoAudio.mp4",
-                            mime="video/mp4",
-                            use_container_width=True
-                        )
-                with btn_col2:
-                    if st.button("🔧 TẢI ÂM THANH & GHÉP NỐI"):
-                        with st.spinner("Đang tải Audio & gọi FFmpeg xử lý... Cần khoảng vài chục giây!"):
-                            final_path = merge_audio_to_video(target_link, file_path, data)
-                            if final_path:
-                                st.session_state.video_file_path = final_path
-                                st.session_state.is_split_mode = False # Đổi cờ, trở về trạng thái bình thường
-                                st.rerun() # Tải lại giao diện để hiện nút tải màu đỏ
-                            else:
-                                st.error("Lỗi ghép nối FFmpeg! Anh vui lòng kiểm tra lại môi trường Cloud.")
-            else:
-                # Trạng thái bình thường (đã có âm thanh)
-                with open(file_path, "rb") as video_file:
-                    st.download_button(
-                        label="📥 TẢI XUỐNG VIDEO HOÀN CHỈNH",
-                        data=video_file,
-                        file_name=f"{export_filename}.mp4",
-                        mime="video/mp4",
-                        use_container_width=True
-                    )
+            with open(file_path, "rb") as video_file:
+                st.download_button(label="📥 TẢI XUỐNG VIDEO HOÀN CHỈNH", data=video_file, file_name=f"{export_filename}.mp4", mime="video/mp4", use_container_width=True)
         else:
             st.error("Không tìm thấy file video trong bộ nhớ tạm. Hãy thử tải lại.")
 
@@ -446,7 +414,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
     
     meta_txt = f"TÁC GIẢ: {st.session_state.author_name}\nTIÊU ĐỀ: {data.get('title')}\n\nNỘI DUNG:\n{description}"
     safe_txt = json.dumps(meta_txt) 
-    
     copy_html = f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
@@ -485,7 +452,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
     """
     components.html(copy_html, height=60)
 
-# Chân trang
 st.markdown("""
     <div class='footer'>
         Thiết kế riêng cho mục đích nghiên cứu văn học của <b>Tác giả Lập</b>.<br>
