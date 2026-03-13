@@ -17,7 +17,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# --- CSS TỐI ƯU HÓA BỐ CỤC CHUYÊN NGHIỆP ---
+# --- CSS TỐI ƯU HÓA BỐ CỤC: TRẮNG VIỀN HỒNG XHS ---
 st.markdown("""
     <style>
     /* Nền trang nhã, font chữ hiện đại */
@@ -27,25 +27,27 @@ st.markdown("""
     }
     h1, h2, h3, p, span, label, .stMarkdown { color: #1a1a1a !important; }
     
-    /* Tùy chỉnh thanh nhập liệu (Text Area) */
+    /* 1. KHUNG NHẬP LIỆU: Nền trắng, viền hồng XHS */
     .stTextArea textarea {
+        background-color: #ffffff !important;
         border-radius: 12px !important;
-        border: 2px solid #eaeaea !important;
+        border: 2px solid #ff2442 !important;
         padding: 15px !important;
         font-size: 15px !important;
-        box-shadow: inset 0 2px 4px rgba(0,0,0,0.02) !important;
+        color: #1a1a1a !important;
+        box-shadow: 0 4px 10px rgba(255, 36, 66, 0.05) !important;
         transition: all 0.3s ease;
     }
     .stTextArea textarea:focus {
-        border-color: #ff2442 !important;
-        box-shadow: 0 0 0 3px rgba(255, 36, 66, 0.1) !important;
+        box-shadow: 0 0 0 4px rgba(255, 36, 66, 0.15) !important;
+        outline: none !important;
     }
 
-    /* Tùy chỉnh Nút bấm phân tích chính */
+    /* 2. CÁC NÚT BẤM (Phân tích): Nền trắng, viền hồng, chữ hồng */
     div.stButton > button {
-        background-color: #1a1a1a !important; /* Đổi nút Phân tích sang đen xám cực kỳ sang trọng */
-        color: #ffffff !important; 
-        border: none !important;
+        background-color: #ffffff !important; 
+        color: #ff2442 !important; 
+        border: 2px solid #ff2442 !important;
         border-radius: 12px !important; 
         font-size: 16px !important; 
         font-weight: 800 !important;
@@ -53,37 +55,43 @@ st.markdown("""
         height: 55px !important;
         width: 100% !important;
         transition: all 0.2s ease;
-        box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
     }
+    /* Hiệu ứng đảo màu khi lướt chuột */
     div.stButton > button:hover { 
         transform: translateY(-2px); 
-        background-color: #ff2442 !important; /* Khi di chuột vào mới sáng lên màu đỏ XHS */
-        box-shadow: 0 12px 20px rgba(255, 36, 66, 0.2) !important; 
+        background-color: #ff2442 !important; 
+        color: #ffffff !important;
+        box-shadow: 0 8px 20px rgba(255, 36, 66, 0.25) !important; 
     }
     div.stButton > button:active { transform: translateY(1px); }
 
-    /* Tùy chỉnh Nút Tải xuống */
+    /* 3. NÚT TẢI XUỐNG: Cùng phong cách trắng viền hồng */
     div.stDownloadButton > button {
-        background-color: #ff2442 !important; 
-        color: #ffffff !important; 
-        border: none !important;
+        background-color: #ffffff !important; 
+        color: #ff2442 !important; 
+        border: 2px solid #ff2442 !important;
         border-radius: 8px !important;
         font-size: 14px !important; 
         font-weight: 800 !important; 
         width: 100% !important;
-        box-shadow: 0 4px 10px rgba(255, 36, 66, 0.2) !important;
+        transition: all 0.2s ease;
     }
-    div.stDownloadButton > button:hover { background-color: #e61e3a !important; transform: translateY(-1px); }
+    div.stDownloadButton > button:hover { 
+        background-color: #ff2442 !important; 
+        color: #ffffff !important;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 15px rgba(255, 36, 66, 0.2) !important;
+    }
 
-    /* Hack CSS: Kính lúp NẰM NGOÀI ẢNH (Góc trên trái) & Fullscreen Click */
+    /* Hack CSS: Chữ "Xem ảnh lớn" NẰM NGOÀI ẢNH (Góc trên trái) & Fullscreen Click */
     [data-testid="stImage"] {
         position: relative !important;
-        padding-top: 32px !important; /* Đẩy ảnh xuống để lấy chỗ trống cho chữ/icon phía trên */
+        padding-top: 32px !important; 
         border-radius: 12px;
         transition: transform 0.3s ease !important;
     }
     [data-testid="stImage"]::before {
-        content: "🔍 Xem ảnh lớn"; /* Đã đưa ra ngoài mạn trên trái của ảnh */
+        content: "🔍 Xem ảnh lớn"; 
         position: absolute;
         top: 4px;
         left: 0;
@@ -120,8 +128,8 @@ st.markdown("""
         z-index: 10 !important;
     }
 
-    /* Các thành phần phụ trợ */
-    .stProgress > div > div > div > div { background-color: #1a1a1a !important; }
+    /* Thanh tiến trình đồng bộ màu hồng XHS */
+    .stProgress > div > div > div > div { background-color: #ff2442 !important; }
     .footer { text-align: center; padding: 40px; color: #aaa !important; font-size: 13px; margin-top: 50px; }
     </style>
     """, unsafe_allow_html=True)
@@ -162,7 +170,7 @@ def download_video_to_temp(url, progress_bar, status_text):
             clean_percent = re.sub(r'\x1b\[[0-9;]*m', '', percent_str).replace('%', '').strip()
             try:
                 progress_bar.progress(int(float(clean_percent)))
-                status_text.markdown(f"<p style='text-align:center; color: #1a1a1a; font-weight: 600; font-size: 14px;'>Đang xử lý phân tích: {clean_percent}%</p>", unsafe_allow_html=True)
+                status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 600; font-size: 14px;'>Đang xử lý phân tích: {clean_percent}%</p>", unsafe_allow_html=True)
             except ValueError: pass
 
     base_opts = {
@@ -259,7 +267,7 @@ def process_and_download():
 # 1. Header tinh giản
 st.markdown("""
     <div style="text-align: center; margin-top: 30px; margin-bottom: 40px;">
-        <h1 style='color: #1a1a1a; font-weight: 900; font-size: 32px; letter-spacing: -0.5px; margin-bottom: 5px;'>XHS REDNOTE</h1>
+        <h1 style='color: #ff2442; font-weight: 900; font-size: 32px; letter-spacing: -0.5px; margin-bottom: 5px;'>XHS REDNOTE</h1>
         <p style='font-size: 15px; color: #888;'>Hệ thống Phân tích & Lưu trữ Tư liệu Văn học — <b>Tác giả Lập</b></p>
     </div>
 """, unsafe_allow_html=True)
@@ -318,7 +326,7 @@ if st.session_state.general_info and st.session_state.playlist_data:
         description = info.get('description') or 'Không có nội dung văn bản.'
         safe_desc = html.escape(description)
         st.markdown(f"""
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #f0f0f0; font-size: 15px; line-height: 1.7; white-space: pre-wrap; color: #333; margin-top: 15px; max-height: 250px; overflow-y: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.02);">
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #ff244220; font-size: 15px; line-height: 1.7; white-space: pre-wrap; color: #333; margin-top: 15px; max-height: 250px; overflow-y: auto; box-shadow: 0 4px 10px rgba(255,36,66,0.03);">
                 {safe_desc}
             </div>
         """, unsafe_allow_html=True)
@@ -330,14 +338,14 @@ if st.session_state.general_info and st.session_state.playlist_data:
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap');
         body {{ margin: 0; padding: 0; background-color: transparent; }}
         button {{
-            background-color: #f8f9fa !important; color: #1a1a1a !important; border: 1px solid #ddd !important;
+            background-color: #ffffff !important; color: #ff2442 !important; border: 2px solid #ff2442 !important;
             border-radius: 8px !important; width: 100% !important; height: 45px !important; 
             font-size: 14px !important; font-weight: 700 !important;
             font-family: 'Inter', sans-serif !important; cursor: pointer;
             transition: all 0.2s ease !important; margin-top: 15px;
         }}
-        button:hover {{ background-color: #efefef !important; border-color: #ccc !important; }}
-        button:active {{ transform: scale(0.98) !important; }}
+        button:hover {{ background-color: #ff2442 !important; color: #ffffff !important; box-shadow: 0 4px 12px rgba(255, 36, 66, 0.2) !important; }}
+        button:active {{ transform: translateY(1px) !important; }}
         </style>
         <button id="cpy-btn" onclick='copyToClipboard()'>SAO CHÉP VĂN BẢN</button>
         <script>
@@ -345,12 +353,12 @@ if st.session_state.general_info and st.session_state.playlist_data:
             navigator.clipboard.writeText({safe_txt}).then(function() {{
                 const btn = document.getElementById('cpy-btn');
                 btn.innerText = 'ĐÃ SAO CHÉP';
-                btn.style.backgroundColor = '#1a1a1a';
+                btn.style.backgroundColor = '#ff2442';
                 btn.style.color = '#fff';
                 setTimeout(() => {{
                     btn.innerText = 'SAO CHÉP VĂN BẢN';
-                    btn.style.backgroundColor = '#f8f9fa';
-                    btn.style.color = '#1a1a1a';
+                    btn.style.backgroundColor = '#ffffff';
+                    btn.style.color = '#ff2442';
                 }}, 2000);
             }});
         }}
