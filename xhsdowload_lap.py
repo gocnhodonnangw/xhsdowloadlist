@@ -17,7 +17,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh (THÊM ICON KÍNH LÚP TRẮNG VÀO GÓC ẢNH)
+# CSS Tùy chỉnh (ĐÃ VÁ LỖI HOVER & CLICK ẢNH)
 st.markdown("""
     <style>
     .stApp {
@@ -51,45 +51,61 @@ st.markdown("""
     .footer { text-align: center; padding: 40px; color: #999 !important; font-size: 14px; border-top: 1px solid #f0f0f0; margin-top: 60px; background-color: rgba(255, 255, 255, 0.8); }
     
     /* =========================================================
-       HACK CSS: KÍNH LÚP TRẮNG Ở GÓC + VÙNG CLICK PHÓNG TO 
+       HACK CSS 2.0: HIỆU ỨNG HOVER & CLICK ĐA ĐIỂM HOÀN HẢO
        ========================================================= */
-    [data-testid="stImage"] {
-        position: relative;
-        cursor: pointer !important;
-    }
     
-    /* Chèn Icon kính lúp SVG màu trắng nét thanh vào góc phải */
+    /* 1. Hiệu ứng nổi bật khi đưa chuột vào ảnh */
+    [data-testid="stImage"] {
+        position: relative !important;
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+    }
+    [data-testid="stImage"]:hover {
+        transform: scale(1.02);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
+        z-index: 2;
+    }
+
+    /* 2. Tạo kính lúp tĩnh màu trắng ở góc */
     [data-testid="stImage"]::after {
-        content: "";
+        content: "🔍";
         position: absolute;
         top: 10px;
         right: 10px;
-        width: 32px;
-        height: 32px;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
-        background-size: 18px 18px;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-color: rgba(0, 0, 0, 0.45); /* Nền mờ để nổi bật kính lúp trên ảnh sáng */
-        border-radius: 8px; /* Bo góc nhẹ cho tinh tế */
-        pointer-events: none; /* Tránh cản trở thao tác click bên dưới */
+        font-size: 18px;
+        background-color: rgba(0,0,0,0.5);
+        color: white;
+        padding: 6px;
+        border-radius: 8px;
+        pointer-events: none; /* Không cản cú click chuột */
         z-index: 5;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+    
+    /* Đổi màu kính lúp sang đỏ khi Hover */
+    [data-testid="stImage"]:hover::after {
+        background-color: #ff2442;
+        transform: scale(1.1);
     }
 
-    /* Mở rộng nút phóng to mặc định của Streamlit ra toàn bộ ảnh và làm cho nó tàng hình */
-    [data-testid="stImage"] button[title="View fullscreen"] {
+    /* 3. Phép thuật: Ép nút Fullscreen mặc định giãn 100% và tàng hình */
+    [data-testid="stImage"] [data-testid="StyledFullScreenButton"],
+    [data-testid="stImage"] button {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
         width: 100% !important;
         height: 100% !important;
-        top: 0 !important;
-        right: 0 !important;
-        opacity: 0 !important; 
-        visibility: visible !important; 
+        opacity: 0 !important; /* Tàng hình nhưng vẫn hứng được click */
+        visibility: visible !important;
+        display: block !important;
         cursor: pointer !important;
-        z-index: 10;
-    }
-    [data-testid="stImage"] img {
-        pointer-events: none; 
+        z-index: 10 !important;
+        background: transparent !important;
+        border: none !important;
     }
     </style>
     """, unsafe_allow_html=True)
