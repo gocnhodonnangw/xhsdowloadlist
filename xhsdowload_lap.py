@@ -277,16 +277,16 @@ if st.session_state.general_info and st.session_state.playlist_data:
     with res_c1:
         if st.session_state.thumbnail_bytes:
             st.image(st.session_state.thumbnail_bytes, caption="Ảnh bìa bài viết", use_container_width=True)
-            # Nút bật Popup
-            if st.button("👁️ PHÓNG TO ẢNH BÌA", key="btn_zoom_main"):
+            # Nút bật Popup (chỉ dùng icon)
+            if st.button("🖼️", key="btn_zoom_main", help="Phóng to ảnh bìa"):
                 show_preview_dialog(st.session_state.thumbnail_bytes)
         else:
             fallback_url = info.get('thumbnail')
             if fallback_url: 
                 anti_cache_fallback = f"{fallback_url}&_t={int(time.time())}" if "?" in fallback_url else f"{fallback_url}?_t={int(time.time())}"
                 st.image(anti_cache_fallback, caption="Ảnh bìa bài viết", use_container_width=True)
-                # Nút bật Popup
-                if st.button("👁️ PHÓNG TO ẢNH BÌA", key="btn_zoom_main_fb"):
+                # Nút bật Popup (chỉ dùng icon)
+                if st.button("🖼️", key="btn_zoom_main_fb", help="Phóng to ảnh bìa"):
                     show_preview_dialog(anti_cache_fallback)
             else: 
                 st.info("Không có ảnh bìa chung")
@@ -359,8 +359,8 @@ if st.session_state.general_info and st.session_state.playlist_data:
             if vid_thumb:
                 anti_cache_thumb = f"{vid_thumb}&_t={int(time.time())}" if "?" in vid_thumb else f"{vid_thumb}?_t={int(time.time())}"
                 st.image(anti_cache_thumb, use_container_width=True)
-                # Nút Popup cho từng ảnh trong lưới
-                if st.button("👁️ PHÓNG TO", key=f"btn_zoom_{idx}"):
+                # Nút Popup cho từng ảnh trong lưới (chỉ dùng icon)
+                if st.button("🖼️", key=f"btn_zoom_{idx}", help="Phóng to ảnh bìa này"):
                     show_preview_dialog(anti_cache_thumb)
             else:
                 st.info("Video không có hình demo.")
