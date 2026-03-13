@@ -60,6 +60,19 @@ if 'thumbnail_bytes' not in st.session_state: st.session_state.thumbnail_bytes =
 if 'author_name' not in st.session_state: st.session_state.author_name = "Chưa xác định"
 if 'user_agent' not in st.session_state: st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+# --- TÍNH NĂNG POPUP ẢNH (MODAL) CHUẨN XÁC ---
+@st.dialog("🔍 XEM CHI TIẾT ẢNH", width="large")
+def show_preview_dialog(img_data):
+    st.markdown("<p style='text-align: center; color: #888; font-size: 14px; margin-top: -15px; margin-bottom: 15px;'><i>Nhấn ra ngoài viền hoặc bấm nút [X] ở góc trên cùng để thoát</i></p>", unsafe_allow_html=True)
+    st.image(img_data, use_container_width=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    _, btn_col, _ = st.columns([1, 1, 1])
+    with btn_col:
+        # Nút thủ công dự phòng cho anh nếu không thích ấn ra ngoài
+        if st.button("❌ ĐÓNG CỬA SỔ", key="btn_close_modal"):
+            st.rerun()
+
 # --- TIÊU ĐỀ ---
 st.markdown("""
     <div style="text-align: left; margin-bottom: 20px; padding-top: 10px;">
@@ -264,11 +277,17 @@ if st.session_state.general_info and st.session_state.playlist_data:
     with res_c1:
         if st.session_state.thumbnail_bytes:
             st.image(st.session_state.thumbnail_bytes, caption="Ảnh bìa bài viết", use_container_width=True)
+            # Nút bật Popup
+            if st.button("👁️ PHÓNG TO ẢNH BÌA", key="btn_zoom_main"):
+                show_preview_dialog(st.session_state.thumbnail_bytes)
         else:
             fallback_url = info.get('thumbnail')
             if fallback_url: 
                 anti_cache_fallback = f"{fallback_url}&_t={int(time.time())}" if "?" in fallback_url else f"{fallback_url}?_t={int(time.time())}"
                 st.image(anti_cache_fallback, caption="Ảnh bìa bài viết", use_container_width=True)
+                # Nút bật Popup
+                if st.button("👁️ PHÓNG TO ẢNH BÌA", key="btn_zoom_main_fb"):
+                    show_preview_dialog(anti_cache_fallback)
             else: 
                 st.info("Không có ảnh bìa chung")
 
@@ -340,6 +359,9 @@ if st.session_state.general_info and st.session_state.playlist_data:
             if vid_thumb:
                 anti_cache_thumb = f"{vid_thumb}&_t={int(time.time())}" if "?" in vid_thumb else f"{vid_thumb}?_t={int(time.time())}"
                 st.image(anti_cache_thumb, use_container_width=True)
+                # Nút Popup cho từng ảnh trong lưới
+                if st.button("👁️ PHÓNG TO", key=f"btn_zoom_{idx}"):
+                    show_preview_dialog(anti_cache_thumb)
             else:
                 st.info("Video không có hình demo.")
             
