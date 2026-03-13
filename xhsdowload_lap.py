@@ -17,7 +17,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh (GIỮ NGUYÊN HIỆU ỨNG HOVER & CLICK ĐA ĐIỂM)
+# CSS Tùy chỉnh (THÊM THỦ THUẬT CLICK ẢNH NGUYÊN BẢN VÀ BIỂU TƯỢNG KÍNH LÚP)
 st.markdown("""
     <style>
     .stApp {
@@ -39,7 +39,7 @@ st.markdown("""
 
     div.stDownloadButton > button, div.stDownloadButton > button p, div.stDownloadButton > button span {
         background-color: #ff2442 !important; color: #ffffff !important; border: none !important;
-        font-size: 14px !important; font-weight: 900 !important; letter-spacing: 0.5px !important;
+        font-size: 16px !important; font-weight: 900 !important; letter-spacing: 0.5px !important;
     }
     div.stDownloadButton > button { box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.4) !important; width: 100% !important; }
     div.stDownloadButton > button:hover { background-color: #e61e3a !important; }
@@ -50,52 +50,50 @@ st.markdown("""
     img { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .footer { text-align: center; padding: 40px; color: #999 !important; font-size: 14px; border-top: 1px solid #f0f0f0; margin-top: 60px; background-color: rgba(255, 255, 255, 0.8); }
     
-    /* HACK CSS 2.0: HIỆU ỨNG HOVER & CLICK ĐA ĐIỂM HOÀN HẢO */
+    /* =========================================================
+       HACK CSS: BIẾN TOÀN BỘ ẢNH THÀNH VÙNG CLICK ĐỂ PHÓNG TO 
+       VÀ BIỂU TƯỢNG KÍNH LÚP TĨNH Ở GÓC TRÁI
+       ========================================================= */
     [data-testid="stImage"] {
-        position: relative !important;
-        border-radius: 12px;
-        overflow: hidden;
-        transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+        position: relative;
+        cursor: pointer !important;
     }
-    [data-testid="stImage"]:hover {
-        transform: scale(1.02);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
-        z-index: 2;
-    }
+
+    /* Chèn Icon kính lúp emoji màu trắng vào góc trái */
     [data-testid="stImage"]::after {
         content: "🔍";
         position: absolute;
         top: 10px;
-        right: 10px;
-        font-size: 18px;
-        background-color: rgba(0,0,0,0.5);
+        left: 10px;
         color: white;
-        padding: 6px;
-        border-radius: 8px;
-        pointer-events: none;
-        z-index: 5;
-        transition: all 0.3s ease;
+        background-color: rgba(0,0,0,0.4);
+        padding: 5px;
+        border-radius: 50%;
+        pointer-events: none; /* Tránh cản trở thao tác click bên dưới */
+        z-index: 5; /* Đặt lên trên ảnh */
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    [data-testid="stImage"]:hover::after {
-        background-color: #ff2442;
-        transform: scale(1.1);
-    }
-    [data-testid="stImage"] [data-testid="StyledFullScreenButton"],
-    [data-testid="stImage"] button {
-        position: absolute !important;
+
+    /* Lấy nút phóng to mặc định của Streamlit, làm cho nó trong suốt và kéo giãn */
+    [data-testid="stImage"] button[title="View fullscreen"] {
+        width: 100% !important;
+        height: 100% !important;
         top: 0 !important;
         left: 0 !important;
         right: 0 !important;
         bottom: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        opacity: 0 !important;
-        visibility: visible !important;
-        display: block !important;
+        opacity: 0 !important; /* Tàng hình */
+        visibility: visible !important; /* Ép luôn bật */
         cursor: pointer !important;
-        z-index: 10 !important;
-        background: transparent !important;
-        border: none !important;
+        z-index: 10; /* Đặt lên trên kính lúp và ảnh */
+    }
+
+    /* Ngăn cản sự kiện click chuột trực tiếp vào hình ảnh để nó không cản nút tàng hình */
+    [data-testid="stImage"] img {
+        pointer-events: none;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -130,13 +128,22 @@ def extract_url(text):
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
-# --- LUỒNG XỬ LÝ CHÍNH (TỰ ĐỘNG ÉP CHẤT LƯỢNG CAO NHẤT) ---
-def download_video_to_temp(url, progress_bar, status_text):
+# --- LUỒNG XỬ LÝ CHÍNH (GOM PLAYLIST VÀ VIDEO ĐƠN) ---
+def download_video_to_temp(url, q_key, progress_bar, status_text):
     nuke_cache()
     temp_dir = APP_TEMP_DIR
     
     http_headers = {'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/'}
     ffmpeg_args = ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5']
+
+    base_opts = {
+        'quiet': True, 
+        'no_warnings': True, 
+        'nocache': True, 
+        'rm_cachedir': True, 
+        'http_headers': http_headers,
+        'external_downloader_args': {'ffmpeg': ffmpeg_args}
+    }
 
     def progress_hook(d):
         if d['status'] == 'downloading':
@@ -147,28 +154,23 @@ def download_video_to_temp(url, progress_bar, status_text):
                 status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo dữ liệu: {clean_percent}%</p>", unsafe_allow_html=True)
             except ValueError: pass
 
-    # TỰ ĐỘNG CHỌN CHẤT LƯỢNG TỐT NHẤT (Ưu tiên <= 1080p, nếu không có lấy bản tốt nhất hiện tại)
-    base_opts = {
-        'format': 'best[height<=1080]/best',
-        'outtmpl': os.path.join(temp_dir, '%(id)s_std.%(ext)s'),
-        'quiet': True, 
-        'no_warnings': True, 
-        'nocache': True, 
-        'rm_cachedir': True, 
-        'http_headers': http_headers,
-        'external_downloader_args': {'ffmpeg': ffmpeg_args},
-        'progress_hooks': [progress_hook]
-    }
+    standard_q_map = {"1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"}
+    std_opts = base_opts.copy()
+    std_opts['format'] = standard_q_map.get(q_key, 'best')
+    std_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_std.%(ext)s')
+    std_opts['progress_hooks'] = [progress_hook]
 
-    with yt_dlp.YoutubeDL(base_opts) as ydl:
+    with yt_dlp.YoutubeDL(std_opts) as ydl:
         ydl.cache.remove()
         info_raw = ydl.extract_info(url, download=True)
         
         results = []
+        # Kiểm tra xem đây là Playlist hay Video đơn
         if 'entries' in info_raw:
             for entry in info_raw['entries']:
-                if entry:
+                if entry: # Bỏ qua các mục lỗi
                     file_path = ydl.prepare_filename(entry)
+                    # Nếu file có dạng .unknown_video, đổi đuôi thành mp4 để đảm bảo chạy được
                     if not file_path.endswith('.mp4'):
                         new_path = file_path.rsplit('.', 1)[0] + '.mp4'
                         if os.path.exists(file_path):
@@ -193,6 +195,7 @@ with mid_input:
 
 target_link = extract_url(raw_input)
 
+# Xóa State nếu dán link MỚI
 if target_link != st.session_state.current_link:
     st.session_state.playlist_data = None
     st.session_state.general_info = None
@@ -206,9 +209,14 @@ if not target_link:
 else:
     st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! Sẵn sàng tải xuống.</div>", unsafe_allow_html=True)
 
+st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b> Chọn phương thức gom luồng:</b></p>", unsafe_allow_html=True)
+
+# Bố cục nút bấm tinh gọn
+_, b1, b2, b3, _ = st.columns([1, 2, 2, 2, 1])
+
 is_disabled = False if target_link else True
 
-def process_and_download():
+def process_and_download(quality):
     st.session_state.thumbnail_bytes = None 
     st.session_state.playlist_data = None
     st.session_state.general_info = None
@@ -219,10 +227,11 @@ def process_and_download():
         status_text = st.empty()
         
         try:
-            results, info = download_video_to_temp(target_link, progress_bar, status_text)
+            results, info = download_video_to_temp(target_link, quality, progress_bar, status_text)
             st.session_state.playlist_data = results
             st.session_state.general_info = info
             
+            # --- QUÉT ẢNH TƯƠI VÀ TÁC GIẢ TỪ LÕI HTML ---
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             fresh_thumb_url = None
             
@@ -250,6 +259,7 @@ def process_and_download():
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
+            # Lấy ảnh bìa chung
             thumb_url = fresh_thumb_url
             if not thumb_url:
                 thumbnails = info.get('thumbnails', [])
@@ -278,11 +288,9 @@ def process_and_download():
         except Exception as e:
             st.error(f"Đã xảy ra lỗi hệ thống: {e}")
 
-# --- NÚT BẤM DUY NHẤT ĐỂ KÍCH HOẠT ---
-_, center_btn, _ = st.columns([1, 2, 1])
-with center_btn:
-    if st.button("🚀 TIẾN HÀNH GOM TƯ LIỆU", disabled=is_disabled):
-        process_and_download()
+if b1.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
+if b2.button("BẢN 720P", disabled=is_disabled): process_and_download("720p")
+if b3.button("BẢN 480P", disabled=is_disabled): process_and_download("480p")
 
 # --- HIỂN THỊ KẾT QUẢ ---
 if st.session_state.general_info and st.session_state.playlist_data:
@@ -297,15 +305,17 @@ if st.session_state.general_info and st.session_state.playlist_data:
     if len(safe_title) > 60: safe_title = safe_title[:60] + "..."
     export_filename_base = f"@{safe_author}_{safe_title}"
     
+    # 1. Hiển thị thông tin chung của bài viết
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
         if st.session_state.thumbnail_bytes:
-            st.image(st.session_state.thumbnail_bytes, use_container_width=True)
+            # Ảnh mặc định trở thành nút bấm tàng hình
+            st.image(st.session_state.thumbnail_bytes, caption="Nhấp vào ảnh để phóng to", use_container_width=True)
         else:
             fallback_url = info.get('thumbnail')
             if fallback_url: 
                 anti_cache_fallback = f"{fallback_url}&_t={int(time.time())}" if "?" in fallback_url else f"{fallback_url}?_t={int(time.time())}"
-                st.image(anti_cache_fallback, use_container_width=True)
+                st.image(anti_cache_fallback, caption="Nhấp vào ảnh để phóng to", use_container_width=True)
             else: 
                 st.info("Không có ảnh bìa chung")
 
@@ -377,9 +387,7 @@ if st.session_state.general_info and st.session_state.playlist_data:
             else:
                 st.info("Video không có hình demo.")
             
-            # Ghi chú rõ ràng về chất lượng thực tế kéo được
-            actual_res = f"{vid_data.get('width', 'N/A')}x{vid_data.get('height', 'N/A')}"
-            st.write(f"**Chất lượng thu được:** {actual_res} *(Tốt nhất hiện có)*")
+            st.write(f"**Phân giải:** {vid_data.get('width', 'N/A')}x{vid_data.get('height', 'N/A')}")
             
             if os.path.exists(vid_path):
                 file_size_mb = round(os.path.getsize(vid_path) / (1024 * 1024), 2)
@@ -388,7 +396,7 @@ if st.session_state.general_info and st.session_state.playlist_data:
                 download_name = f"{export_filename_base}_Phan_{idx+1}.mp4"
                 with open(vid_path, "rb") as video_file:
                     st.download_button(
-                        label=f"📥 TẢI VIDEO NÀY LƯU VỀ MÁY", 
+                        label=f"📥 TẢI VIDEO SỐ {idx + 1}", 
                         data=video_file, 
                         file_name=download_name, 
                         mime="video/mp4", 
