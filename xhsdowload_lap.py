@@ -17,7 +17,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh
+# CSS Tùy chỉnh (THÊM THỦ THUẬT CLICK ẢNH NGUYÊN BẢN)
 st.markdown("""
     <style>
     .stApp {
@@ -49,6 +49,26 @@ st.markdown("""
     .status-msg { text-align: center; padding: 12px; border-radius: 10px; margin-bottom: 25px; font-weight: 600; }
     img { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .footer { text-align: center; padding: 40px; color: #999 !important; font-size: 14px; border-top: 1px solid #f0f0f0; margin-top: 60px; background-color: rgba(255, 255, 255, 0.8); }
+    
+    /* =========================================================
+       HACK CSS: BIẾN TOÀN BỘ ẢNH THÀNH VÙNG CLICK ĐỂ PHÓNG TO 
+       ========================================================= */
+    [data-testid="stImage"] {
+        position: relative;
+        cursor: pointer !important;
+    }
+    [data-testid="stImage"] button[title="View fullscreen"] {
+        width: 100% !important;
+        height: 100% !important;
+        top: 0 !important;
+        right: 0 !important;
+        opacity: 0 !important; /* Tàng hình nút phóng to */
+        visibility: visible !important; /* Ép luôn bật để hứng sự kiện click */
+        cursor: pointer !important;
+    }
+    [data-testid="stImage"] img {
+        pointer-events: none; /* Tránh cản trở nút tàng hình */
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -59,19 +79,6 @@ if 'current_link' not in st.session_state: st.session_state.current_link = None
 if 'thumbnail_bytes' not in st.session_state: st.session_state.thumbnail_bytes = None
 if 'author_name' not in st.session_state: st.session_state.author_name = "Chưa xác định"
 if 'user_agent' not in st.session_state: st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-# --- TÍNH NĂNG POPUP ẢNH (MODAL) CHUẨN XÁC ---
-@st.dialog("🔍 XEM CHI TIẾT ẢNH", width="large")
-def show_preview_dialog(img_data):
-    st.markdown("<p style='text-align: center; color: #888; font-size: 14px; margin-top: -15px; margin-bottom: 15px;'><i>Nhấn ra ngoài viền hoặc bấm nút [X] ở góc trên cùng để thoát</i></p>", unsafe_allow_html=True)
-    st.image(img_data, use_container_width=True)
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    _, btn_col, _ = st.columns([1, 1, 1])
-    with btn_col:
-        # Nút thủ công dự phòng cho anh nếu không thích ấn ra ngoài
-        if st.button("❌ ĐÓNG CỬA SỔ", key="btn_close_modal"):
-            st.rerun()
 
 # --- TIÊU ĐỀ ---
 st.markdown("""
@@ -95,7 +102,7 @@ def extract_url(text):
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
-# --- LUỒNG XỬ LÝ CHÍNH (GOM PLAYLIST VÀ VIDEO ĐƠN) ---
+# --- LUỒNG XỬ LÝ CHÍNH ---
 def download_video_to_temp(url, q_key, progress_bar, status_text):
     nuke_cache()
     temp_dir = APP_TEMP_DIR
@@ -132,12 +139,10 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
         info_raw = ydl.extract_info(url, download=True)
         
         results = []
-        # Kiểm tra xem đây là Playlist hay Video đơn
         if 'entries' in info_raw:
             for entry in info_raw['entries']:
-                if entry: # Bỏ qua các mục lỗi
+                if entry:
                     file_path = ydl.prepare_filename(entry)
-                    # Nếu file có dạng .unknown_video, đổi đuôi thành mp4 để đảm bảo chạy được
                     if not file_path.endswith('.mp4'):
                         new_path = file_path.rsplit('.', 1)[0] + '.mp4'
                         if os.path.exists(file_path):
@@ -162,7 +167,6 @@ with mid_input:
 
 target_link = extract_url(raw_input)
 
-# Xóa State nếu dán link MỚI
 if target_link != st.session_state.current_link:
     st.session_state.playlist_data = None
     st.session_state.general_info = None
@@ -178,7 +182,6 @@ else:
 
 st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn phương thức gom luồng:</b></p>", unsafe_allow_html=True)
 
-# Bố cục nút bấm tinh gọn
 _, b1, b2, b3, _ = st.columns([1, 2, 2, 2, 1])
 
 is_disabled = False if target_link else True
@@ -198,7 +201,6 @@ def process_and_download(quality):
             st.session_state.playlist_data = results
             st.session_state.general_info = info
             
-            # --- QUÉT ẢNH TƯƠI VÀ TÁC GIẢ TỪ LÕI HTML ---
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             fresh_thumb_url = None
             
@@ -226,7 +228,6 @@ def process_and_download(quality):
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            # Lấy ảnh bìa chung
             thumb_url = fresh_thumb_url
             if not thumb_url:
                 thumbnails = info.get('thumbnails', [])
@@ -272,22 +273,16 @@ if st.session_state.general_info and st.session_state.playlist_data:
     if len(safe_title) > 60: safe_title = safe_title[:60] + "..."
     export_filename_base = f"@{safe_author}_{safe_title}"
     
-    # 1. Hiển thị thông tin chung của bài viết
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
         if st.session_state.thumbnail_bytes:
-            st.image(st.session_state.thumbnail_bytes, caption="Ảnh bìa bài viết", use_container_width=True)
-            # Nút bật Popup (chỉ dùng icon)
-            if st.button("🖼️", key="btn_zoom_main", help="Phóng to ảnh bìa"):
-                show_preview_dialog(st.session_state.thumbnail_bytes)
+            # Ảnh mặc định trở thành nút bấm tàng hình
+            st.image(st.session_state.thumbnail_bytes, caption="Nhấp vào ảnh để phóng to", use_container_width=True)
         else:
             fallback_url = info.get('thumbnail')
             if fallback_url: 
                 anti_cache_fallback = f"{fallback_url}&_t={int(time.time())}" if "?" in fallback_url else f"{fallback_url}?_t={int(time.time())}"
-                st.image(anti_cache_fallback, caption="Ảnh bìa bài viết", use_container_width=True)
-                # Nút bật Popup (chỉ dùng icon)
-                if st.button("🖼️", key="btn_zoom_main_fb", help="Phóng to ảnh bìa"):
-                    show_preview_dialog(anti_cache_fallback)
+                st.image(anti_cache_fallback, caption="Nhấp vào ảnh để phóng to", use_container_width=True)
             else: 
                 st.info("Không có ảnh bìa chung")
 
@@ -335,11 +330,10 @@ if st.session_state.general_info and st.session_state.playlist_data:
         """
         components.html(copy_html, height=70)
 
-    # 2. KHU VỰC PLAYLIST Ở BÊN DƯỚI
+    # 2. KHU VỰC PLAYLIST
     st.divider()
     st.markdown(f"### 🗂️ PLAYLIST TƯ LIỆU ({len(playlist)} Video)")
     
-    # Tạo lưới (grid) 3 cột để hiển thị danh sách video
     cols = st.columns(3)
     
     for idx, item in enumerate(playlist):
@@ -347,32 +341,25 @@ if st.session_state.general_info and st.session_state.playlist_data:
         vid_path = item['path']
         
         with cols[idx % 3]:
-            # Khung chứa từng video
             st.markdown(f"""
                 <div style="background-color: #fafafa; padding: 15px; border-radius: 12px; border: 1px solid #eaeaea; margin-bottom: 20px;">
                     <p style="margin: 0 0 10px 0; font-weight: 800; color: #ff2442;">🎬 Video phần {idx + 1}</p>
                 </div>
             """, unsafe_allow_html=True)
             
-            # Hình demo của riêng video đó
             vid_thumb = vid_data.get('thumbnail')
             if vid_thumb:
                 anti_cache_thumb = f"{vid_thumb}&_t={int(time.time())}" if "?" in vid_thumb else f"{vid_thumb}?_t={int(time.time())}"
                 st.image(anti_cache_thumb, use_container_width=True)
-                # Nút Popup cho từng ảnh trong lưới (chỉ dùng icon)
-                if st.button("🖼️", key=f"btn_zoom_{idx}", help="Phóng to ảnh bìa này"):
-                    show_preview_dialog(anti_cache_thumb)
             else:
                 st.info("Video không có hình demo.")
             
             st.write(f"**Phân giải:** {vid_data.get('width', 'N/A')}x{vid_data.get('height', 'N/A')}")
             
-            # Nút tải xuống
             if os.path.exists(vid_path):
                 file_size_mb = round(os.path.getsize(vid_path) / (1024 * 1024), 2)
                 st.write(f"**Dung lượng:** {file_size_mb} MB")
                 
-                # Nút tải có gắn số thứ tự để file không đè lên nhau
                 download_name = f"{export_filename_base}_Phan_{idx+1}.mp4"
                 with open(vid_path, "rb") as video_file:
                     st.download_button(
