@@ -17,19 +17,51 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# --- CSS TỐI ƯU HÓA BỐ CỤC: TRẮNG VIỀN HỒNG XHS ---
+# --- CSS TỐI ƯU HÓA BỐ CỤC: BACKGROUND BLUR & GIAO DIỆN OUTLINE ---
 st.markdown("""
     <style>
-    /* Nền trang nhã, font chữ hiện đại */
+    /* 1. Nền trang nhã kết hợp các khối hình Blur trôi nổi nhẹ nhàng */
     .stApp {
         background-color: #fcfcfc;
         font-family: 'Inter', 'Segoe UI', sans-serif;
+        overflow-x: hidden;
     }
+    .stApp::before, .stApp::after {
+        content: '';
+        position: fixed;
+        filter: blur(80px); /* Hiệu ứng làm mờ mạnh */
+        opacity: 0.3;
+        z-index: -1;
+        border-radius: 50%;
+        animation: floatShape 25s infinite alternate ease-in-out;
+    }
+    /* Khối tròn mờ màu hồng nhạt góc trên */
+    .stApp::before {
+        width: 500px;
+        height: 500px;
+        background: #ff9a9e;
+        top: -150px;
+        left: -100px;
+    }
+    /* Khối mờ màu tím/hồng nhạt góc dưới */
+    .stApp::after {
+        width: 400px;
+        height: 400px;
+        background: #fecfef;
+        bottom: -100px;
+        right: -50px;
+        animation-delay: -12s;
+    }
+    @keyframes floatShape {
+        0% { transform: translate(0, 0) scale(1); }
+        100% { transform: translate(80px, 80px) scale(1.1); }
+    }
+
     h1, h2, h3, p, span, label, .stMarkdown { color: #1a1a1a !important; }
     
-    /* 1. KHUNG NHẬP LIỆU: Nền trắng, viền hồng XHS */
+    /* 2. KHUNG NHẬP LIỆU: Nền trắng, viền hồng XHS */
     .stTextArea textarea {
-        background-color: #ffffff !important;
+        background-color: rgba(255, 255, 255, 0.9) !important;
         border-radius: 12px !important;
         border: 2px solid #ff2442 !important;
         padding: 15px !important;
@@ -43,7 +75,7 @@ st.markdown("""
         outline: none !important;
     }
 
-    /* 2. CÁC NÚT BẤM (Phân tích): Nền trắng, viền hồng, chữ hồng */
+    /* 3. NÚT PHÂN TÍCH: Nền trắng, viền hồng */
     div.stButton > button {
         background-color: #ffffff !important; 
         color: #ff2442 !important; 
@@ -56,16 +88,14 @@ st.markdown("""
         width: 100% !important;
         transition: all 0.2s ease;
     }
-    /* Hiệu ứng đảo màu khi lướt chuột */
     div.stButton > button:hover { 
-        transform: translateY(-2px); 
         background-color: #ff2442 !important; 
         color: #ffffff !important;
         box-shadow: 0 8px 20px rgba(255, 36, 66, 0.25) !important; 
     }
     div.stButton > button:active { transform: translateY(1px); }
 
-    /* 3. NÚT TẢI XUỐNG: Cùng phong cách trắng viền hồng */
+    /* 4. NÚT TẢI XUỐNG */
     div.stDownloadButton > button {
         background-color: #ffffff !important; 
         color: #ff2442 !important; 
@@ -79,39 +109,36 @@ st.markdown("""
     div.stDownloadButton > button:hover { 
         background-color: #ff2442 !important; 
         color: #ffffff !important;
-        transform: translateY(-1px);
         box-shadow: 0 6px 15px rgba(255, 36, 66, 0.2) !important;
     }
 
-    /* Hack CSS: Chữ "Xem ảnh lớn" NẰM NGOÀI ẢNH (Góc trên trái) & Fullscreen Click */
+    /* 5. ẢNH & KÍNH LÚP TÁCH BIỆT (KHÔNG ZOOM KHI HOVER) */
     [data-testid="stImage"] {
         position: relative !important;
-        padding-top: 32px !important; 
+        margin-top: 35px !important; /* Tạo khoảng trống 35px phía trên ảnh để chứa text kính lúp */
         border-radius: 12px;
-        transition: transform 0.3s ease !important;
     }
+    
+    /* Chữ "🔍 Xem ảnh lớn" nằm hoàn toàn bên ngoài và bên trên ảnh */
     [data-testid="stImage"]::before {
         content: "🔍 Xem ảnh lớn"; 
         position: absolute;
-        top: 4px;
+        top: -28px; /* Đẩy hẳn ra khỏi ảnh */
         left: 0;
-        color: #888;
+        color: #ff2442;
         font-size: 13px;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.5px;
-        transition: color 0.2s ease;
         z-index: 5;
     }
-    [data-testid="stImage"]:hover::before { color: #ff2442; }
-    [data-testid="stImage"]:hover { transform: scale(1.01); }
     
     [data-testid="stImage"] img {
         border-radius: 8px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        pointer-events: none;
+        pointer-events: none; /* Khóa click trực tiếp vào img để nhường cho nút fullscreen tàng hình */
     }
     
-    /* Nút tàng hình bao phủ toàn bộ vùng đệm để kích hoạt Fullscreen */
+    /* Nút tàng hình bao phủ vừa khít bức ảnh để kích hoạt Fullscreen khi click */
     [data-testid="stImage"] [data-testid="StyledFullScreenButton"],
     [data-testid="stImage"] button {
         position: absolute !important;
@@ -126,6 +153,17 @@ st.markdown("""
         display: block !important;
         cursor: pointer !important;
         z-index: 10 !important;
+    }
+
+    /* Khối bao bọc nội dung (Card) để nổi bật trên nền mờ */
+    .content-card {
+        background-color: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,36,66,0.1);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+        margin-bottom: 25px;
     }
 
     /* Thanh tiến trình đồng bộ màu hồng XHS */
@@ -266,7 +304,7 @@ def process_and_download():
 
 # 1. Header tinh giản
 st.markdown("""
-    <div style="text-align: center; margin-top: 30px; margin-bottom: 40px;">
+    <div style="text-align: center; margin-top: 30px; margin-bottom: 40px; position: relative; z-index: 2;">
         <h1 style='color: #ff2442; font-weight: 900; font-size: 32px; letter-spacing: -0.5px; margin-bottom: 5px;'>XHS REDNOTE</h1>
         <p style='font-size: 15px; color: #888;'>Hệ thống Phân tích & Lưu trữ Tư liệu Văn học — <b>Tác giả Lập</b></p>
     </div>
@@ -275,6 +313,7 @@ st.markdown("""
 # 2. Vùng Nhập liệu Trung tâm
 _, col_input, _ = st.columns([1.5, 4, 1.5])
 with col_input:
+    st.markdown("<div class='content-card'>", unsafe_allow_html=True) # Bọc thẻ Card để nổi bật trên nền blur
     raw_input = st.text_area("Dán nội dung bài viết hoặc liên kết vào đây:", height=68, label_visibility="collapsed", placeholder="Dán nội dung bài viết hoặc liên kết XHS vào đây...")
     target_link = extract_url(raw_input)
     
@@ -289,8 +328,9 @@ with col_input:
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     if st.button("Phân tích", disabled=is_disabled):
         process_and_download()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
 # 3. Khu vực Hiển thị Kết quả
 if st.session_state.general_info and st.session_state.playlist_data:
@@ -326,7 +366,7 @@ if st.session_state.general_info and st.session_state.playlist_data:
         description = info.get('description') or 'Không có nội dung văn bản.'
         safe_desc = html.escape(description)
         st.markdown(f"""
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #ff244220; font-size: 15px; line-height: 1.7; white-space: pre-wrap; color: #333; margin-top: 15px; max-height: 250px; overflow-y: auto; box-shadow: 0 4px 10px rgba(255,36,66,0.03);">
+            <div class="content-card" style="margin-top: 15px; max-height: 250px; overflow-y: auto; font-size: 15px; line-height: 1.7;">
                 {safe_desc}
             </div>
         """, unsafe_allow_html=True)
@@ -342,7 +382,7 @@ if st.session_state.general_info and st.session_state.playlist_data:
             border-radius: 8px !important; width: 100% !important; height: 45px !important; 
             font-size: 14px !important; font-weight: 700 !important;
             font-family: 'Inter', sans-serif !important; cursor: pointer;
-            transition: all 0.2s ease !important; margin-top: 15px;
+            transition: all 0.2s ease !important; margin-top: 5px;
         }}
         button:hover {{ background-color: #ff2442 !important; color: #ffffff !important; box-shadow: 0 4px 12px rgba(255, 36, 66, 0.2) !important; }}
         button:active {{ transform: translateY(1px) !important; }}
@@ -375,8 +415,8 @@ if st.session_state.general_info and st.session_state.playlist_data:
         vid_path = item['path']
         
         with cols[idx % 3]:
-            # Bọc từng item trong một khối hộp (Card)
-            st.markdown("""<div style="background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #f0f0f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 25px;">""", unsafe_allow_html=True)
+            # Bọc từng item trong một khối hộp (Card) nền mờ
+            st.markdown("""<div class="content-card" style="padding: 15px; margin-bottom: 25px;">""", unsafe_allow_html=True)
             
             st.markdown(f"<p style='margin: 0 0 10px 0; font-weight: 700; color: #555; font-size: 14px;'>Phần {idx + 1}</p>", unsafe_allow_html=True)
             
