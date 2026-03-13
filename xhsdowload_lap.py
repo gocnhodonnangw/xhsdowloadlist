@@ -17,7 +17,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh (THÊM THỦ THUẬT CLICK ẢNH NGUYÊN BẢN)
+# CSS Tùy chỉnh (THÊM ICON KÍNH LÚP TRẮNG VÀO GÓC ẢNH)
 st.markdown("""
     <style>
     .stApp {
@@ -51,23 +51,45 @@ st.markdown("""
     .footer { text-align: center; padding: 40px; color: #999 !important; font-size: 14px; border-top: 1px solid #f0f0f0; margin-top: 60px; background-color: rgba(255, 255, 255, 0.8); }
     
     /* =========================================================
-       HACK CSS: BIẾN TOÀN BỘ ẢNH THÀNH VÙNG CLICK ĐỂ PHÓNG TO 
+       HACK CSS: KÍNH LÚP TRẮNG Ở GÓC + VÙNG CLICK PHÓNG TO 
        ========================================================= */
     [data-testid="stImage"] {
         position: relative;
         cursor: pointer !important;
     }
+    
+    /* Chèn Icon kính lúp SVG màu trắng nét thanh vào góc phải */
+    [data-testid="stImage"]::after {
+        content: "";
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 32px;
+        height: 32px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+        background-size: 18px 18px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-color: rgba(0, 0, 0, 0.45); /* Nền mờ để nổi bật kính lúp trên ảnh sáng */
+        border-radius: 8px; /* Bo góc nhẹ cho tinh tế */
+        pointer-events: none; /* Tránh cản trở thao tác click bên dưới */
+        z-index: 5;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    /* Mở rộng nút phóng to mặc định của Streamlit ra toàn bộ ảnh và làm cho nó tàng hình */
     [data-testid="stImage"] button[title="View fullscreen"] {
         width: 100% !important;
         height: 100% !important;
         top: 0 !important;
         right: 0 !important;
-        opacity: 0 !important; /* Tàng hình nút phóng to */
-        visibility: visible !important; /* Ép luôn bật để hứng sự kiện click */
+        opacity: 0 !important; 
+        visibility: visible !important; 
         cursor: pointer !important;
+        z-index: 10;
     }
     [data-testid="stImage"] img {
-        pointer-events: none; /* Tránh cản trở nút tàng hình */
+        pointer-events: none; 
     }
     </style>
     """, unsafe_allow_html=True)
@@ -276,13 +298,12 @@ if st.session_state.general_info and st.session_state.playlist_data:
     res_c1, res_c2 = st.columns([1, 1.4])
     with res_c1:
         if st.session_state.thumbnail_bytes:
-            # Ảnh mặc định trở thành nút bấm tàng hình
-            st.image(st.session_state.thumbnail_bytes, caption="Nhấp vào ảnh để phóng to", use_container_width=True)
+            st.image(st.session_state.thumbnail_bytes, use_container_width=True)
         else:
             fallback_url = info.get('thumbnail')
             if fallback_url: 
                 anti_cache_fallback = f"{fallback_url}&_t={int(time.time())}" if "?" in fallback_url else f"{fallback_url}?_t={int(time.time())}"
-                st.image(anti_cache_fallback, caption="Nhấp vào ảnh để phóng to", use_container_width=True)
+                st.image(anti_cache_fallback, use_container_width=True)
             else: 
                 st.info("Không có ảnh bìa chung")
 
