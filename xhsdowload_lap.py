@@ -7,28 +7,8 @@ import requests
 import json
 import html
 import time
-import subprocess
 import shutil
-import zipfile
-import io
 import streamlit.components.v1 as components
-
-# --- CƠ CHẾ TỰ ĐỘNG CÀI ĐẶT TRÌNH DUYỆT ẢO TRÊN CLOUD ---
-@st.cache_resource
-def install_playwright_browsers():
-    try:
-        os.system("playwright install chromium")
-    except:
-        pass
-
-install_playwright_browsers()
-# --------------------------------------------------------
-
-try:
-    from playwright.sync_api import sync_playwright
-    PLAYWRIGHT_AVAILABLE = True
-except ImportError:
-    PLAYWRIGHT_AVAILABLE = False
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="XHS Collector - Tác giả Lập", layout="wide")
@@ -37,7 +17,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh (GIỮ NGUYÊN VẸN FONT CHỮ VÀ GIAO DIỆN)
+# CSS Tùy chỉnh
 st.markdown("""
     <style>
     .stApp {
@@ -78,42 +58,15 @@ if 'video_file_path' not in st.session_state: st.session_state.video_file_path =
 if 'current_link' not in st.session_state: st.session_state.current_link = None
 if 'thumbnail_bytes' not in st.session_state: st.session_state.thumbnail_bytes = None
 if 'author_name' not in st.session_state: st.session_state.author_name = "Chưa xác định"
-if 'user_cookie' not in st.session_state: st.session_state.user_cookie = ""
 if 'user_agent' not in st.session_state: st.session_state.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-# --- CỬA SỔ CÀI ĐẶT BẢO MẬT ---
-@st.dialog("⚙️ CÀI ĐẶT BẢO MẬT TÀI KHOẢN")
-def settings_dialog():
-    st.markdown("""
-        <div style="background-color: #fdfdfd; padding: 18px; border-radius: 12px; border: 1px solid #eaeaea; margin-bottom: 20px;">
-            <h4 style="color: #ff2442; margin-top: 0px; margin-bottom: 12px; font-weight: 800;">🔑 Mở khóa luồng VIP 4K</h4>
-            <p style="color: #666; font-size: 14px; margin-bottom: 8px; line-height: 1.5;">
-                Hệ thống Dual-Engine cần Cookie để giả lập môi trường người dùng thật.
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
-    cookie_input = st.text_input("Chuỗi Cookie:", value=st.session_state.user_cookie, type="password", placeholder="Dán mã Cookie web_session=...", label_visibility="collapsed")
-    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-    if st.button("💾 LƯU BẢO MẬT & ÁP DỤNG"):
-        st.session_state.user_cookie = cookie_input.strip()
-        st.success("✅ Đã lưu! Cửa sổ sẽ tự đóng...")
-        time.sleep(1)
-        st.rerun()
-
-# --- TIÊU ĐỀ & NÚT CÀI ĐẶT ---
-header_col1, header_col2 = st.columns([11, 1])
-with header_col1:
-    st.markdown("""
-        <div style="text-align: left; margin-bottom: 20px; padding-top: 10px;">
-            <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 900; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
-            <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu Dual-Engine của <b>Tác giả Lập</b></p>
-        </div>
-    """, unsafe_allow_html=True)
-with header_col2:
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-    if st.button("⚙️", help="Nhập Cookie mở khóa 4K"):
-        settings_dialog()
-
+# --- TIÊU ĐỀ ---
+st.markdown("""
+    <div style="text-align: left; margin-bottom: 20px; padding-top: 10px;">
+        <h2 style='color: #ff2442; margin-bottom: 0px; padding-bottom: 0px; font-weight: 900; font-size: 26px;'>Xiaohongshu - Rednote Collector</h2>
+        <p style='font-size: 15px; color: #666 !important; margin-top: 2px;'>Hệ thống lưu trữ tư liệu của <b>Tác giả Lập</b></p>
+    </div>
+""", unsafe_allow_html=True)
 st.divider()
 
 def nuke_cache():
@@ -130,113 +83,12 @@ def extract_url(text):
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
-# ==========================================
-# ĐỘNG CƠ MỚI: DEEP SNIFFER (PLAYWRIGHT)
-# ==========================================
-def playwright_deep_sniff(url, cookie_str, ua):
-    if not PLAYWRIGHT_AVAILABLE:
-        return None, None
-        
-    found_data = {"url": None, "headers": {}}
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(user_agent=ua)
-            
-            if cookie_str:
-                cookies_list = []
-                for item in cookie_str.split(';'):
-                    if '=' in item:
-                        k, v = item.strip().split('=', 1)
-                        cookies_list.append({'name': k.strip(), 'value': v.strip(), 'domain': '.xiaohongshu.com', 'path': '/'})
-                if cookies_list:
-                    context.add_cookies(cookies_list)
-                    
-            page = context.new_page()
-            
-            def intercept_request(request):
-                r_url = request.url
-                if ('.m3u8' in r_url or ('.mp4' in r_url and 'sns-video' in r_url)) and not found_data["url"]:
-                    found_data["url"] = r_url
-                    found_data["headers"] = request.headers
-                    
-            page.on("request", intercept_request)
-            
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                page.wait_for_timeout(4000)
-            except: pass
-            finally:
-                browser.close()
-    except Exception: pass
-        
-    return found_data["url"], found_data["headers"]
-
-def old_regex_sniff_m3u8(original_url, headers):
-    try:
-        resp = requests.get(original_url, headers=headers, timeout=10)
-        matches = re.findall(r'(https?://[^\s"\'\\]+\.m3u8[^\s"\'\\]*)', resp.text)
-        if matches: return matches[0].replace('\\u002F', '/').replace('\\', '')
-    except: pass
-    return None
-
-# ==========================================
-# ĐỘNG CƠ TẢI ẢNH: QUÉT BỘ SƯU TẬP (SLIDE)
-# ==========================================
-def extract_xhs_image_collection(url, cookie_str, ua):
-    """Bóc tách toàn bộ mảng ảnh nguyên gốc từ bài đăng XHS dạng Slide"""
-    headers = {
-        'User-Agent': ua,
-        'Cookie': cookie_str if cookie_str else '',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-    }
-    
-    try:
-        anti_cache_url = f"{url}&_t={int(time.time())}" if "?" in url else f"{url}?_t={int(time.time())}"
-        resp = requests.get(anti_cache_url, headers=headers, timeout=15)
-        resp.encoding = 'utf-8'
-        
-        image_urls = []
-        author_name = "Chưa xác định"
-        
-        # Thử lấy tên tác giả từ HTML để đặt tên file ZIP cho chuẩn
-        match_author = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
-        if match_author: 
-            author_name = json.loads('"' + match_author.group(1) + '"')
-            st.session_state.author_name = author_name
-
-        # Bóc tách từ cây JSON __INITIAL_STATE__ (Chuẩn xác nhất)
-        match = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.*?\})\s*</script>', resp.text)
-        if match:
-            try:
-                data = json.loads(match.group(1).replace('undefined', 'null'))
-                note_id = list(data.get('note', {}).get('noteDetailMap', {}).keys())[0] if data.get('note', {}).get('noteDetailMap') else None
-                if note_id:
-                    images = data['note']['noteDetailMap'][note_id]['note'].get('imageList', [])
-                    for img in images:
-                        trace_id = img.get('traceId')
-                        if trace_id:
-                            image_urls.append(f"https://sns-img-hw.xhscdn.com/{trace_id}")
-            except Exception:
-                pass
-                
-        # Fallback bằng Regex nếu JSON bị đổi cấu trúc
-        if not image_urls:
-            raw_urls = re.findall(r'"(https://sns-img-[^"]+)"', resp.text)
-            image_urls = list(dict.fromkeys([u.replace('\\u002F', '/') for u in raw_urls if 'avatar' not in u]))
-            
-        return image_urls
-    except Exception as e:
-        return []
-
-# --- LUỒNG XỬ LÝ CHÍNH ĐA TẦNG (VIDEO) THÊM CỜ FFMPEG RECONNECT ---
-def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright=False):
+# --- LUỒNG XỬ LÝ CHÍNH (VIDEO) ---
+def download_video_to_temp(url, q_key, progress_bar, status_text):
     nuke_cache()
     temp_dir = APP_TEMP_DIR
     
     http_headers = {'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/'}
-    if st.session_state.user_cookie:
-        http_headers['Cookie'] = st.session_state.user_cookie
 
     ffmpeg_args = [
         '-reconnect', '1', 
@@ -262,66 +114,7 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
                 status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo dữ liệu: {clean_percent}%</p>", unsafe_allow_html=True)
             except ValueError: pass
 
-    with yt_dlp.YoutubeDL(base_opts) as ydl:
-        ydl.cache.remove()
-        info = ydl.extract_info(url, download=False)
-        vid_id = info.get('id', str(int(time.time())))
-
-    # TẦNG 1: ORIGIN 4K
-    if st.session_state.user_cookie and q_key == "Origin":
-        try:
-            target_download_url = None
-            sniffed_headers = {}
-            if use_playwright and PLAYWRIGHT_AVAILABLE:
-                status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🤖 Động cơ Playwright đang mở luồng ẩn, vui lòng đợi 4-5 giây...</p>", unsafe_allow_html=True)
-                target_download_url, sniffed_headers = playwright_deep_sniff(url, st.session_state.user_cookie, st.session_state.user_agent)
-            
-            if not target_download_url:
-                status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>🔎 Kích hoạt Engine Regex quét luồng dự phòng...</p>", unsafe_allow_html=True)
-                target_download_url = old_regex_sniff_m3u8(url, http_headers)
-                
-            if not target_download_url:
-                target_download_url = url
-
-            vid_path = os.path.join(temp_dir, f"{vid_id}_video_only.mp4")
-            aud_path = os.path.join(temp_dir, f"{vid_id}_audio_only.m4a")
-            final_path = os.path.join(temp_dir, f"{vid_id}_final_4k.mp4")
-
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 1/3: Đang kéo lõi Hình Ảnh 4K...</p>", unsafe_allow_html=True)
-            v_opts = base_opts.copy()
-            if sniffed_headers:
-                v_opts['http_headers'].update(sniffed_headers)
-            v_opts['format'] = 'bestvideo'
-            v_opts['outtmpl'] = vid_path
-            with yt_dlp.YoutubeDL(v_opts) as ydl: ydl.download([target_download_url])
-            progress_bar.progress(40)
-
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 2/3: Đang kéo lõi Âm Thanh...</p>", unsafe_allow_html=True)
-            a_opts = base_opts.copy()
-            if sniffed_headers:
-                a_opts['http_headers'].update(sniffed_headers)
-            a_opts['format'] = 'bestaudio'
-            a_opts['outtmpl'] = aud_path
-            with yt_dlp.YoutubeDL(a_opts) as ydl: ydl.download([target_download_url])
-            progress_bar.progress(80)
-
-            status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>⏳ BƯỚC 3/3: Đang tự động hàn ghép âm thanh & hình ảnh...</p>", unsafe_allow_html=True)
-            command = ['ffmpeg', '-y', '-i', vid_path, '-i', aud_path, '-c:v', 'copy', '-c:a', 'aac', final_path]
-            process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
-            if process.returncode == 0 and os.path.exists(final_path):
-                progress_bar.progress(100)
-                status_text.markdown("<p style='text-align:center; color: #28a745; font-weight: 700;'>✅ Hoàn tất! Tư liệu 4K đã được hợp nhất.</p>", unsafe_allow_html=True)
-                return info, final_path
-            else:
-                raise Exception("Lỗi ghép nối FFmpeg")
-
-        except Exception as e:
-            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Lỗi luồng VIP. Tự động lùi về luồng liền khối an toàn...</p>", unsafe_allow_html=True)
-            time.sleep(1.5)
-
-    # TẦNG 2: HẠ CÁNH AN TOÀN
-    standard_q_map = {"Origin": "best", "1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"}
+    standard_q_map = {"1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"}
     std_opts = base_opts.copy()
     std_opts['format'] = standard_q_map.get(q_key, 'best')
     std_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_std.%(ext)s')
@@ -336,16 +129,10 @@ def download_video_to_temp(url, q_key, progress_bar, status_text, use_playwright
             file_path = ydl.prepare_filename(info_std)
         return info_std, file_path
 
-# --- KHU VỰC NHẬP LIỆU & LỰA CHỌN ENGINE ---
+# --- KHU VỰC NHẬP LIỆU ---
 _, mid_input, _ = st.columns([1, 3, 1])
 with mid_input:
     raw_input = st.text_area("Dán nội dung bài viết hoặc link XHS vào đây:", height=100)
-    
-    if PLAYWRIGHT_AVAILABLE:
-        use_playwright = st.checkbox("🔥 Bật Động cơ Playwright (Mở trình duyệt ảo túm luồng 4K)", value=False)
-    else:
-        st.warning("Cảnh báo: Đang chạy luồng Regex tĩnh. Hãy cấu hình packages.txt và requirements.txt để dùng luồng Playwright.")
-        use_playwright = False
 
 target_link = extract_url(raw_input)
 
@@ -359,24 +146,18 @@ if target_link != st.session_state.current_link:
     nuke_cache() 
 
 if not target_link:
-    st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ anh dán link tư liệu...</div>", unsafe_allow_html=True)
+    st.markdown("<div class='status-msg' style='background-color: #f8f9fa; color: #888 !important;'>⚪ Hệ thống đang chờ dán link tư liệu...</div>", unsafe_allow_html=True)
 else:
-    if st.session_state.user_cookie:
-        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [ĐÃ BẬT COOKIE VIP] Sẵn sàng đánh chặn luồng Origin.</div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! [CHƯA BẬT COOKIE] Khuyên dùng bản 1080p.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! Sẵn sàng tải xuống.</div>", unsafe_allow_html=True)
 
 st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn phương thức gom luồng:</b></p>", unsafe_allow_html=True)
 
-# Bố cục nút bấm mới có chứa nút Tải Ảnh
-_, b1, b2, b3, b4, b5, _ = st.columns([0.2, 1.5, 1.5, 1.5, 1.5, 2.5, 0.2])
+# Bố cục nút bấm tinh gọn
+_, b1, b2, b3, _ = st.columns([1, 2, 2, 2, 1])
 
 is_disabled = False if target_link else True
 
 def process_and_download(quality):
-    # ========================================================
-    # XÓA TRẮNG DỮ LIỆU CŨ TRÊN UI NGAY LẬP TỨC KHI BẤM NÚT
-    # ========================================================
     st.session_state.thumbnail_bytes = None 
     st.session_state.video_data = None
     st.session_state.video_file_path = None
@@ -387,26 +168,23 @@ def process_and_download(quality):
         status_text = st.empty()
         
         try:
-            info, path = download_video_to_temp(target_link, quality, progress_bar, status_text, use_playwright)
+            info, path = download_video_to_temp(target_link, quality, progress_bar, status_text)
             st.session_state.video_data = info
             st.session_state.video_file_path = path
             
-            # --- QUÉT ẢNH TƯƠI TỪ LÕI HTML (CHỐNG CACHE TUYỆT ĐỐI) ---
+            # --- QUÉT ẢNH TƯƠI TỪ LÕI HTML ---
             found_author = info.get('uploader') or info.get('creator') or info.get('channel') or info.get('user')
             fresh_thumb_url = None
             
             try:
                 scrape_url = info.get('webpage_url') or target_link
-                # Thêm bùa chú chống Cache
                 headers = {
                     'User-Agent': st.session_state.user_agent, 
-                    'Cookie': st.session_state.user_cookie if st.session_state.user_cookie else '',
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache',
                     'Expires': '0'
                 }
                 
-                # Nối timestamp để lừa hệ thống luôn tải mới HTML
                 anti_cache_scrape_url = f"{scrape_url}&_t={int(time.time())}" if "?" in scrape_url else f"{scrape_url}?_t={int(time.time())}"
                 resp = requests.get(anti_cache_scrape_url, headers=headers, timeout=10, allow_redirects=True)
                 
@@ -415,7 +193,6 @@ def process_and_download(quality):
                         match = re.search(r'"nickname"\s*:\s*"([^"]+)"', resp.text)
                         if match: found_author = json.loads('"' + match.group(1) + '"')
                     
-                    # Bóc trực tiếp thẻ meta chứa ảnh nét nhất của XHS
                     img_match = re.search(r'<meta name="og:image" content="([^"]+)"', resp.text)
                     if img_match:
                         fresh_thumb_url = img_match.group(1).replace('\\u002F', '/')
@@ -423,7 +200,6 @@ def process_and_download(quality):
             
             st.session_state.author_name = found_author if found_author else "Chưa xác định"
             
-            # Ưu tiên tuyệt đối ảnh tươi bóc bằng HTML
             thumb_url = fresh_thumb_url
             if not thumb_url:
                 thumbnails = info.get('thumbnails', [])
@@ -434,7 +210,6 @@ def process_and_download(quality):
                         except: thumb_url = valid_thumbs[-1].get('url') 
                 if not thumb_url: thumb_url = info.get('thumbnail') 
 
-            # Tải File Ảnh với lệnh ép không dùng Cache
             if thumb_url:
                 try:
                     anti_cache_img_url = f"{thumb_url}&_t={int(time.time())}" if "?" in thumb_url else f"{thumb_url}?_t={int(time.time())}"
@@ -453,66 +228,11 @@ def process_and_download(quality):
         except Exception as e:
             st.error(f"Đã xảy ra lỗi hệ thống: {e}")
 
-if b1.button("ORIGIN", disabled=is_disabled): process_and_download("Origin")
-if b2.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
-if b3.button("BẢN 720P", disabled=is_disabled): process_and_download("720p")
-if b4.button("BẢN 480P", disabled=is_disabled): process_and_download("480p")
+if b1.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
+if b2.button("BẢN 720P", disabled=is_disabled): process_and_download("720p")
+if b3.button("BẢN 480P", disabled=is_disabled): process_and_download("480p")
 
-# --- NÚT BẤM MỚI: TẢI BỘ SƯU TẬP ẢNH ---
-if b5.button("🖼️ TẢI TRỌN BỘ ẢNH", disabled=is_disabled):
-    # Dọn dẹp giao diện cũ
-    st.session_state.thumbnail_bytes = None 
-    st.session_state.video_data = None
-    st.session_state.video_file_path = None
-    nuke_cache()
-    
-    _, p_col, _ = st.columns([1, 4, 1])
-    with p_col:
-        status_text = st.empty()
-        status_text.markdown("<p style='text-align:center; color: #ff2442; font-weight: 700;'>🔎 Đang quét lõi HTML để tìm toàn bộ ảnh sắc nét...</p>", unsafe_allow_html=True)
-        
-        img_links = extract_xhs_image_collection(target_link, st.session_state.user_cookie, st.session_state.user_agent)
-        
-        if not img_links:
-            status_text.markdown("<p style='text-align:center; color: #ff8c00; font-weight: 700;'>⚠️ Không tìm thấy mảng ảnh nào! Có thể đây là bài Video thuần hoặc lỗi kết nối.</p>", unsafe_allow_html=True)
-        else:
-            status_text.markdown(f"<p style='text-align:center; color: #28a745; font-weight: 700;'>✅ Đã tìm thấy {len(img_links)} ảnh chất lượng cao. Đang đóng gói...</p>", unsafe_allow_html=True)
-            
-            # Khởi tạo file ZIP trong RAM
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-                for idx, img_url in enumerate(img_links):
-                    try:
-                        img_resp = requests.get(img_url, headers={'User-Agent': st.session_state.user_agent}, timeout=10)
-                        if img_resp.status_code == 200:
-                            zip_file.writestr(f"Slide_{idx+1}.jpg", img_resp.content)
-                    except:
-                        pass
-            
-            # Hiển thị bộ sưu tập lên giao diện
-            st.divider()
-            st.markdown(f"### 📸 Đã bóc tách thành công {len(img_links)} ảnh")
-            
-            cols = st.columns(3)
-            for i, img_url in enumerate(img_links):
-                with cols[i % 3]:
-                    st.image(img_url, use_container_width=True, caption=f"Ảnh {i+1}")
-            
-            safe_author = re.sub(r'[\\/*?:"<>|\n\r]', "", st.session_state.author_name).strip()
-            zip_filename = f"@{safe_author}_XHS_Collection_{int(time.time())}.zip"
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.download_button(
-                label="📦 BẤM VÀO ĐÂY ĐỂ TẢI TRỌN BỘ SƯU TẬP (FILE ZIP)",
-                data=zip_buffer.getvalue(),
-                file_name=zip_filename,
-                mime="application/zip",
-                use_container_width=True
-            )
-            
-            status_text.empty()
-
-# --- HIỂN THỊ KẾT QUẢ CHO LUỒNG VIDEO ---
+# --- HIỂN THỊ KẾT QUẢ ---
 if st.session_state.video_data and st.session_state.video_file_path:
     data = st.session_state.video_data
     file_path = st.session_state.video_file_path
@@ -595,6 +315,6 @@ if st.session_state.video_data and st.session_state.video_file_path:
 st.markdown("""
     <div class='footer'>
         Thiết kế riêng cho mục đích nghiên cứu văn học của <b>Tác giả Lập</b>.<br>
-        2026 Edition | Xiaohongshu-Rednote Collector
+        2026 Edition | Xiaohongshu Collector
     </div>
     """, unsafe_allow_html=True)
