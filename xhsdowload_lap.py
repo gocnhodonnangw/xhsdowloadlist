@@ -17,7 +17,7 @@ APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'XHS_Collector_Workspace')
 if not os.path.exists(APP_TEMP_DIR):
     os.makedirs(APP_TEMP_DIR)
 
-# CSS Tùy chỉnh (ĐÃ VÁ LỖI HOVER & CLICK ẢNH)
+# CSS Tùy chỉnh (GIỮ NGUYÊN HIỆU ỨNG HOVER & CLICK ĐA ĐIỂM)
 st.markdown("""
     <style>
     .stApp {
@@ -50,11 +50,7 @@ st.markdown("""
     img { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .footer { text-align: center; padding: 40px; color: #999 !important; font-size: 14px; border-top: 1px solid #f0f0f0; margin-top: 60px; background-color: rgba(255, 255, 255, 0.8); }
     
-    /* =========================================================
-       HACK CSS 2.0: HIỆU ỨNG HOVER & CLICK ĐA ĐIỂM HOÀN HẢO
-       ========================================================= */
-    
-    /* 1. Hiệu ứng nổi bật khi đưa chuột vào ảnh */
+    /* HACK CSS 2.0: HIỆU ỨNG HOVER & CLICK ĐA ĐIỂM HOÀN HẢO */
     [data-testid="stImage"] {
         position: relative !important;
         border-radius: 12px;
@@ -66,8 +62,6 @@ st.markdown("""
         box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
         z-index: 2;
     }
-
-    /* 2. Tạo kính lúp tĩnh màu trắng ở góc */
     [data-testid="stImage"]::after {
         content: "🔍";
         position: absolute;
@@ -78,18 +72,14 @@ st.markdown("""
         color: white;
         padding: 6px;
         border-radius: 8px;
-        pointer-events: none; /* Không cản cú click chuột */
+        pointer-events: none;
         z-index: 5;
         transition: all 0.3s ease;
     }
-    
-    /* Đổi màu kính lúp sang đỏ khi Hover */
     [data-testid="stImage"]:hover::after {
         background-color: #ff2442;
         transform: scale(1.1);
     }
-
-    /* 3. Phép thuật: Ép nút Fullscreen mặc định giãn 100% và tàng hình */
     [data-testid="stImage"] [data-testid="StyledFullScreenButton"],
     [data-testid="stImage"] button {
         position: absolute !important;
@@ -99,7 +89,7 @@ st.markdown("""
         bottom: 0 !important;
         width: 100% !important;
         height: 100% !important;
-        opacity: 0 !important; /* Tàng hình nhưng vẫn hứng được click */
+        opacity: 0 !important;
         visibility: visible !important;
         display: block !important;
         cursor: pointer !important;
@@ -140,22 +130,13 @@ def extract_url(text):
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
-# --- LUỒNG XỬ LÝ CHÍNH ---
-def download_video_to_temp(url, q_key, progress_bar, status_text):
+# --- LUỒNG XỬ LÝ CHÍNH (TỰ ĐỘNG ÉP CHẤT LƯỢNG CAO NHẤT) ---
+def download_video_to_temp(url, progress_bar, status_text):
     nuke_cache()
     temp_dir = APP_TEMP_DIR
     
     http_headers = {'User-Agent': st.session_state.user_agent, 'Referer': 'https://www.xiaohongshu.com/'}
     ffmpeg_args = ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5']
-
-    base_opts = {
-        'quiet': True, 
-        'no_warnings': True, 
-        'nocache': True, 
-        'rm_cachedir': True, 
-        'http_headers': http_headers,
-        'external_downloader_args': {'ffmpeg': ffmpeg_args}
-    }
 
     def progress_hook(d):
         if d['status'] == 'downloading':
@@ -166,13 +147,20 @@ def download_video_to_temp(url, q_key, progress_bar, status_text):
                 status_text.markdown(f"<p style='text-align:center; color: #ff2442; font-weight: 700;'>Đang kéo dữ liệu: {clean_percent}%</p>", unsafe_allow_html=True)
             except ValueError: pass
 
-    standard_q_map = {"1080p": "best[height<=1080]", "720p": "best[height<=720]", "480p": "best[height<=480]"}
-    std_opts = base_opts.copy()
-    std_opts['format'] = standard_q_map.get(q_key, 'best')
-    std_opts['outtmpl'] = os.path.join(temp_dir, '%(id)s_std.%(ext)s')
-    std_opts['progress_hooks'] = [progress_hook]
+    # TỰ ĐỘNG CHỌN CHẤT LƯỢNG TỐT NHẤT (Ưu tiên <= 1080p, nếu không có lấy bản tốt nhất hiện tại)
+    base_opts = {
+        'format': 'best[height<=1080]/best',
+        'outtmpl': os.path.join(temp_dir, '%(id)s_std.%(ext)s'),
+        'quiet': True, 
+        'no_warnings': True, 
+        'nocache': True, 
+        'rm_cachedir': True, 
+        'http_headers': http_headers,
+        'external_downloader_args': {'ffmpeg': ffmpeg_args},
+        'progress_hooks': [progress_hook]
+    }
 
-    with yt_dlp.YoutubeDL(std_opts) as ydl:
+    with yt_dlp.YoutubeDL(base_opts) as ydl:
         ydl.cache.remove()
         info_raw = ydl.extract_info(url, download=True)
         
@@ -218,13 +206,9 @@ if not target_link:
 else:
     st.markdown("<div class='status-msg' style='background-color: #fff5f6; color: #ff2442 !important;'>🔴 Đã tìm thấy link! Sẵn sàng tải xuống.</div>", unsafe_allow_html=True)
 
-st.markdown("<p class='centered-text' style='margin-bottom: 10px;'><b>Chọn phương thức gom luồng:</b></p>", unsafe_allow_html=True)
-
-_, b1, b2, b3, _ = st.columns([1, 2, 2, 2, 1])
-
 is_disabled = False if target_link else True
 
-def process_and_download(quality):
+def process_and_download():
     st.session_state.thumbnail_bytes = None 
     st.session_state.playlist_data = None
     st.session_state.general_info = None
@@ -235,7 +219,7 @@ def process_and_download(quality):
         status_text = st.empty()
         
         try:
-            results, info = download_video_to_temp(target_link, quality, progress_bar, status_text)
+            results, info = download_video_to_temp(target_link, progress_bar, status_text)
             st.session_state.playlist_data = results
             st.session_state.general_info = info
             
@@ -294,9 +278,11 @@ def process_and_download(quality):
         except Exception as e:
             st.error(f"Đã xảy ra lỗi hệ thống: {e}")
 
-if b1.button("BẢN 1080P", disabled=is_disabled): process_and_download("1080p")
-if b2.button("BẢN 720P", disabled=is_disabled): process_and_download("720p")
-if b3.button("BẢN 480P", disabled=is_disabled): process_and_download("480p")
+# --- NÚT BẤM DUY NHẤT ĐỂ KÍCH HOẠT ---
+_, center_btn, _ = st.columns([1, 2, 1])
+with center_btn:
+    if st.button("🚀 TIẾN HÀNH GOM TƯ LIỆU", disabled=is_disabled):
+        process_and_download()
 
 # --- HIỂN THỊ KẾT QUẢ ---
 if st.session_state.general_info and st.session_state.playlist_data:
@@ -391,7 +377,9 @@ if st.session_state.general_info and st.session_state.playlist_data:
             else:
                 st.info("Video không có hình demo.")
             
-            st.write(f"**Phân giải:** {vid_data.get('width', 'N/A')}x{vid_data.get('height', 'N/A')}")
+            # Ghi chú rõ ràng về chất lượng thực tế kéo được
+            actual_res = f"{vid_data.get('width', 'N/A')}x{vid_data.get('height', 'N/A')}"
+            st.write(f"**Chất lượng thu được:** {actual_res} *(Tốt nhất hiện có)*")
             
             if os.path.exists(vid_path):
                 file_size_mb = round(os.path.getsize(vid_path) / (1024 * 1024), 2)
@@ -400,7 +388,7 @@ if st.session_state.general_info and st.session_state.playlist_data:
                 download_name = f"{export_filename_base}_Phan_{idx+1}.mp4"
                 with open(vid_path, "rb") as video_file:
                     st.download_button(
-                        label=f"📥 TẢI VIDEO SỐ {idx + 1}", 
+                        label=f"📥 TẢI VIDEO NÀY LƯU VỀ MÁY", 
                         data=video_file, 
                         file_name=download_name, 
                         mime="video/mp4", 
